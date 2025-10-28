@@ -1,0 +1,4 @@
+[submodule "Physical-Layer/esp-idf"]
+	path = Physical-Layer/esp-idf
+	url = git@github.com:espressif/esp-idf.git
+	branch = release/v5.5
