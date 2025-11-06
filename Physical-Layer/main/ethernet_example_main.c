@@ -11,6 +11,33 @@
 
 static const char *TAG = "eth_example";
 
+/* ===============================
+   Custom packet receive callback
+   =============================== */
+static esp_err_t eth_rx_callback(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv)
+{
+    if (buffer == NULL || length == 0) {
+        return ESP_OK;
+    }
+    ESP_LOGI(TAG, "Received Ethernet packet, length=%lu", length);
+    // Print first 64 bytes in hex for debugging
+    printf("Data (hex): ");
+    for (uint32_t i = 0; i < length && i < 64; i++) {
+        printf("%02X ", buffer[i]);
+    }
+    printf("\n");
+    // Optionally print as ASCII for readable messages
+    printf("Data (ASCII): ");
+    for (uint32_t i = 0; i < length && i < 64; i++) {
+        char c = (buffer[i] >= 32 && buffer[i] <= 126) ? buffer[i] : '.';
+        printf("%c", c);
+    }
+    printf("\n\n");
+    // IMPORTANT: Free buffer back to driver
+    free(buffer);
+    return ESP_OK;
+}
+
 /** Event handler for Ethernet events */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data)
@@ -81,6 +108,9 @@ void app_main(void)
     // Register user defined event handlers
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+
+    // Register packet receive callback
+    ESP_ERROR_CHECK(esp_eth_update_input_path(eth_handles[0], eth_rx_callback, NULL));
 
     // Start Ethernet driver state machine
     ESP_ERROR_CHECK(esp_eth_start(eth_handles[0]));
