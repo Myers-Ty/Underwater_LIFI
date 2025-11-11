@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 
 static const char *TAG = "eth_example";
+esp_eth_handle_t *eth_handles;
 
 /* ===============================
    Custom packet receive callback
@@ -54,6 +55,8 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
                  mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
         break;
     case ETHERNET_EVENT_DISCONNECTED:
+        // Unregister packet receive callback
+        ESP_ERROR_CHECK(esp_eth_update_input_path(eth_handles[0], NULL, NULL));
         ESP_LOGI(TAG, "Ethernet Link Down");
         break;
     case ETHERNET_EVENT_START:
@@ -80,13 +83,15 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "ETHMASK:" IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "ETHGW:" IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
+
+    // Register packet receive callback
+    ESP_ERROR_CHECK(esp_eth_update_input_path(eth_handles[0], eth_rx_callback, NULL));
 }
 
 void app_main(void)
 {
     // Initialize Ethernet driver
     uint8_t eth_port_cnt = 0;
-    esp_eth_handle_t *eth_handles;
     ESP_ERROR_CHECK(example_eth_init(&eth_handles, &eth_port_cnt));
 
     // Initialize TCP/IP network interface aka the esp-netif (should be called only once in application)
@@ -108,9 +113,6 @@ void app_main(void)
     // Register user defined event handlers
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
-
-    // Register packet receive callback
-    ESP_ERROR_CHECK(esp_eth_update_input_path(eth_handles[0], eth_rx_callback, NULL));
 
     // Start Ethernet driver state machine
     ESP_ERROR_CHECK(esp_eth_start(eth_handles[0]));
