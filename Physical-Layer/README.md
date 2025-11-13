@@ -28,7 +28,15 @@ This project is the embedded software communication protocol for establishing co
   idf.py set-target esp32s3
   idf.py menuconfig
 ```
-* Inside the menu go to Example Ethernet Configuration -> Enable SPI. Set Interrupt GPIO to pin 9 and set PHY Reset GPIO pin to 8.
+* Inside the menu go to Example Connection Configuration -> Enable SPI. Set Ethernet Type to W5500 Module. Set the following:
+* (12)    SPI SCLK GPIO number
+* (11)    SPI MOSI GPIO number
+* (13)    SPI MISO GPIO number
+* (10)    SPI CS GPIO number
+* (36)    SPI clock speed (MHz)
+* (9)     Interrupt GPIO number
+* (8)     PHY Reset GPIO number
+
 * Press `S` to save, then press `Q` to quit. 
 
 ## Flashing the Transciever

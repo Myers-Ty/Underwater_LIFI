@@ -1,0 +1,51 @@
+Metadata-Version: 2.4
+Name: pytest-embedded-idf
+Version: 2.3.0
+Summary: Make pytest-embedded plugin work with ESP-IDF.
+Author-email: Fu Hanxi <fuhanxi@espressif.com>
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Framework :: Pytest
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Testing
+License-File: LICENSE
+Requires-Dist: pytest-embedded~=2.3.0
+Requires-Dist: esp-idf-panic-decoder
+Requires-Dist: esp-bool-parser>=0.1.2,<1
+Requires-Dist: pytest-embedded-serial-esp~=2.3.0 ; extra == "serial"
+Requires-Dist: esp-coredump~=1.0 ; extra == "serial"
+Project-URL: changelog, https://github.com/espressif/pytest-embedded/blob/main/CHANGELOG.md
+Project-URL: documentation, https://docs.espressif.com/projects/pytest-embedded/en/latest/
+Project-URL: homepage, https://github.com/espressif/pytest-embedded
+Project-URL: repository, https://github.com/espressif/pytest-embedded
+Provides-Extra: serial
+
+### pytest-embedded-idf
+
+pytest embedded service for esp-idf project
+
+Extra Functionalities:
+
+```{eval-rst}
+.. tabs::
+
+   .. group-tab:: `pytest-embedded-serial-esp` activated
+
+        - `app`: parse the built binary by idf rules and gather more information.
+        - `serial`: auto flash the built binary into the target board at the beginning when running test cases.
+
+   .. group-tab:: `pytest-embedded-serial-esp` NOT activated
+
+        - `app`: parse the built binary by idf rules and gather more information.
+```
+
