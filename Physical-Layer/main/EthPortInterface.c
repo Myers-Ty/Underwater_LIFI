@@ -240,6 +240,6 @@ void app_main(void)
     // Take received message and store to buffer in memory (blocks with timeout)
     xTaskCreate(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL);
 
-    // Print messages recieved back to the ethernet
+    //! TODO: Print messages recieved back to the ethernet
     // xTaskCreate(hello_tx_l2tap_task, "hello_tx", 4096, NULL, 4, NULL);
 }
