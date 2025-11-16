@@ -103,6 +103,15 @@ static void create_echo_frame(test_vfs_eth_tap_msg_t *in_frame, test_vfs_eth_tap
     memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN);    
 }
 
+//dummy function for core 2 packet handler
+void send_receiver_task(void *pvParameters)
+{
+    //dummy function
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 /** Demonstrates usage of L2 TAP non-blocking mode with select */
 static void nonblock_l2tap_echo_task(void *pvParameters)
 {
@@ -237,9 +246,12 @@ void app_main(void)
 
     //! TODO: Create a transmitter and reciever mode if necessary
 
-    // Take received message and store to buffer in memory (blocks with timeout)
-    xTaskCreate(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL);
+    //init packets
+    lifi_packet_init();
 
-    //! TODO: Print messages recieved back to the ethernet
-    // xTaskCreate(hello_tx_l2tap_task, "hello_tx", 4096, NULL, 4, NULL);
+    
+    // ROV connections on core 0
+    xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
+    // Sender/Receiver task on core 1 (second core)
+    xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 }
