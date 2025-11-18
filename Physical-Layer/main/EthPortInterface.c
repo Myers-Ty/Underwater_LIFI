@@ -10,7 +10,6 @@
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <errno.h>
-#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_event.h"
@@ -25,8 +24,6 @@
 #include "protocol_examples_common.h"
 #include "lifi_packet.h"
 #include "lifi_config.h"
-#include "esp_eth_time.h" // PTP clock support
-#include "driver/gpio.h"   // GPIO for LED control
 
 #if !defined(CONFIG_EXAMPLE_CONNECT_ETHERNET)
 #error Ethernet interface is not configured to connect.
@@ -108,31 +105,6 @@ static void create_echo_frame(test_vfs_eth_tap_msg_t *in_frame, test_vfs_eth_tap
     memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN);    
 }
 
-// Get current PTP synchronized time
-static inline void get_ptp_time(struct timespec *ts)
-{
-    if (esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, ts) != 0) {
-        // Fallback to regular clock if PTP not available
-        clock_gettime(CLOCK_REALTIME, ts);
-    }
-}
-
-// Calculate time difference in microseconds
-static inline int64_t timespec_diff_us(struct timespec *start, struct timespec *end)
-{
-    int64_t sec_diff = (int64_t)(end->tv_sec - start->tv_sec);
-    int64_t nsec_diff = (int64_t)(end->tv_nsec - start->tv_nsec);
-    return (sec_diff * 1000000LL) + (nsec_diff / 1000LL);
-}
-
-// Log latency metrics for a received packet
-static void log_packet_latency(lifi_packet_t *packet)
-{
-    int64_t latency_us = timespec_diff_us(&packet->tx_timestamp, &packet->rx_timestamp);
-    ESP_LOGI(TAG, "Packet #%lu latency: %lld us (%.3f ms)", 
-             packet->sequence_number, latency_us, latency_us / 1000.0);
-}
-
 // Send a byte over LiFi by manipulating the LED_PIN,
 // sends bits LSB first
 void send_byte(uint8_t byte)
@@ -148,9 +120,6 @@ void send_byte(uint8_t byte)
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
 void send_packet_over_lifi(lifi_packet_t *packet)
 {
-    // Timestamp the transmission start
-    get_ptp_time(&packet->tx_timestamp);
-    
     for(int i = 0; i < LIFI_PACKET_SIZE; i++) {
         send_byte(packet->data[i]);
     }
@@ -194,10 +163,6 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                             len, recv_msg->header.src.addr[0], recv_msg->header.src.addr[1], recv_msg->header.src.addr[2],
                             recv_msg->header.src.addr[3], recv_msg->header.src.addr[4], recv_msg->header.src.addr[5]);
                 
-                // Capture receive timestamp immediately
-                struct timespec rx_time;
-                get_ptp_time(&rx_time);
-                
                 // Print for debugging
                 printf("Data (hex): ");
                 for (uint32_t i = 0; i < sizeof(recv_msg->payload) / sizeof(recv_msg->payload[0]); i++) {
@@ -211,8 +176,7 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                     char c = (recv_msg->payload[i] >= 32 && recv_msg->payload[i] <= 126) ? recv_msg->payload[i] : '.';
                     printf("%c", c);
                 }
-                printf("\n");
-                printf("RX Timestamp: %llu.%09lu\n\n", rx_time.tv_sec, rx_time.tv_nsec);
+                printf("\n\n");
 
                 // Construct echo frame
                 // Save echo frame to our buffer
@@ -301,20 +265,6 @@ void app_main(void)
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
     ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-
-#if LIFI_USE_PTP
-    // Wait for PTP clock to be available
-    struct timespec ptp_time;
-    ESP_LOGI(TAG, "Waiting for PTP clock synchronization...");
-    while (esp_eth_clock_gettime(CLOCK_PTP_SYSTEM, &ptp_time) != 0) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-    ESP_LOGI(TAG, "PTP clock synchronized! Current time: %llu.%09lu", 
-             ptp_time.tv_sec, ptp_time.tv_nsec);
-#endif
-
-    // Initialize GPIO for LiFi
-    lifi_gpio_init();
 
     //! TODO: Create a transmitter and reciever mode if necessary
 
