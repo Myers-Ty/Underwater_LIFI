@@ -1,18 +1,37 @@
 #include "lifi_packet.h"
 
 // Define the global packet arrays
-lifi_packet_t lifi_packets[10];
-lifi_packet_t incoming_lifi_packet;
+//stored packet array (extern - defined in .c file)
+extern packet_handler_t lifi_packets;
 
 // Initialize function to create mutexes
 void lifi_packet_init(void) {
     // Initialize mutexes for packet array
-    for (int i = 0; i < 10; i++) {
-        lifi_packets[i].mutex = xSemaphoreCreateMutex();
-        lifi_packets[i].status = LIFI_EMPTY;
+    for (int i = 0; i < PACKET_COUNT; i++) {
+        pthread_mutex_init(&lifi_packets.locks[i], NULL);
+        lifi_packets.ethToEspPackets[i].status = EMPTY;
     }
     
-    // Initialize incoming packet mutex
-    incoming_lifi_packet.mutex = xSemaphoreCreateMutex();
-    incoming_lifi_packet.status = LIFI_EMPTY;
+    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
+    lifi_packets.espToEspPacket.status = EMPTY;
 }
+
+//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
+/*
+void send_packet_over_lifi(eth_packets_t *packet)
+{
+    for(int i = 0; i < LIFI_PACKET_SIZE; i++) {
+        send_byte(packet->data[i]);
+    }
+}
+
+//dummy function for core 2 packet handler
+void send_receiver_task(void *pvParameters)
+{
+    //dummy function
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+*/
