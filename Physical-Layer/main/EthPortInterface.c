@@ -22,6 +22,8 @@
 #include "lwip/prot/ethernet.h" // Ethernet header
 #include "arpa/inet.h" // ntohs, etc.
 #include "protocol_examples_common.h"
+#include "lifi_packet.h"
+#include "lifi_config.h"
 
 #if !defined(CONFIG_EXAMPLE_CONNECT_ETHERNET)
 #error Ethernet interface is not configured to connect.
@@ -101,6 +103,26 @@ static void create_echo_frame(test_vfs_eth_tap_msg_t *in_frame, test_vfs_eth_tap
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
     memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN);    
+}
+
+// Send a byte over LiFi by manipulating the LED_PIN,
+// sends bits LSB first
+void send_byte(uint8_t byte)
+{
+    uint8_t send_data = byte;
+    for(int i = 0; i < 8; i++) {
+        gpio_set_level(LED_PIN, (1 & send_data) ? HIGH : LOW);
+        send_data >>= 1;
+        vTaskDelay(CLOCK_TICK);
+    }
+}
+
+//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
+void send_packet_over_lifi(lifi_packet_t *packet)
+{
+    for(int i = 0; i < LIFI_PACKET_SIZE; i++) {
+        send_byte(packet->data[i]);
+    }
 }
 
 //dummy function for core 2 packet handler
