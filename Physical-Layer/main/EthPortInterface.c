@@ -19,7 +19,6 @@
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 #include "esp_vfs_l2tap.h"
-#include "lwip/prot/ethernet.h" // Ethernet header
 #include "arpa/inet.h" // ntohs, etc.
 #include "protocol_examples_common.h"
 #include "lifi_packet.h"
@@ -34,11 +33,6 @@
 #define ETH_TYPE_FILTER_TX       0x2223
 
 #define INVALID_FD              -1
-
-typedef struct {
-    struct eth_hdr header;
-    char payload[44];
-} test_vfs_eth_tap_msg_t;
 
 static const char *TAG = "U-LiFi-Eth";
 
@@ -90,7 +84,7 @@ error:
 }
 
 /** Creates "echo" message from received frame */
-static void create_echo_frame(test_vfs_eth_tap_msg_t *in_frame, test_vfs_eth_tap_msg_t *out_frame, int len)
+static void create_echo_frame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len)
 {
     // Set source address equal to our MAC address
     esp_eth_handle_t eth_hndl = get_example_eth_handle();
@@ -114,23 +108,6 @@ void send_byte(uint8_t byte)
         gpio_set_level(LED_PIN, (1 & send_data) ? HIGH : LOW);
         send_data >>= 1;
         vTaskDelay(CLOCK_TICK);
-    }
-}
-
-//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
-void send_packet_over_lifi(lifi_packet_t *packet)
-{
-    for(int i = 0; i < LIFI_PACKET_SIZE; i++) {
-        send_byte(packet->data[i]);
-    }
-}
-
-//dummy function for core 2 packet handler
-void send_receiver_task(void *pvParameters)
-{
-    //dummy function
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -158,7 +135,7 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
         if (ret_sel > 0) {
             ssize_t len = read(eth_tap_fd, rx_buffer, sizeof(rx_buffer));
             if (len > 0) {
-                test_vfs_eth_tap_msg_t *recv_msg = (test_vfs_eth_tap_msg_t *)rx_buffer;
+                eth_packet_t *recv_msg = (eth_packet_t *)rx_buffer;
                 ESP_LOGI(TAG, "fd %d received %d bytes from %.2x:%.2x:%.2x:%.2x:%.2x:%.2x", eth_tap_fd,
                             len, recv_msg->header.src.addr[0], recv_msg->header.src.addr[1], recv_msg->header.src.addr[2],
                             recv_msg->header.src.addr[3], recv_msg->header.src.addr[4], recv_msg->header.src.addr[5]);
@@ -181,7 +158,7 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                 // Construct echo frame
                 // Save echo frame to our buffer
                 //! TODO: Create Buffer and store here for transmission
-                test_vfs_eth_tap_msg_t echo_msg;
+                eth_packet_t echo_msg;
                 create_echo_frame(recv_msg, &echo_msg, len);
 
                 ssize_t ret = write(eth_tap_fd, &echo_msg, len);
@@ -218,7 +195,7 @@ static void hello_tx_l2tap_task(void *pvParameters)
     }
 
     // Construct "Hello" frame
-    test_vfs_eth_tap_msg_t hello_msg = {
+    eth_packet_t hello_msg = {
         .header = {
             .src.addr = {0},
             .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
@@ -276,4 +253,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     // Sender/Receiver task on core 1 (second core)
     xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
+
+    // Lets us send pause frames to stop transmission
+    esp_eth_ioctl(eth_hndl, ETH_CMD_S_FLOW_CTRL, true);
 }

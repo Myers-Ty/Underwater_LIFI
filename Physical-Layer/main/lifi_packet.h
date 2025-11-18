@@ -1,29 +1,47 @@
 #ifndef LIFI_PACKET_H
 #define LIFI_PACKET_H
-void lifi_packet_init(void);
 
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "pthread.h"
+#include "lwip/prot/ethernet.h" // Ethernet header
 
 //packet size
-#define LIFI_PACKET_SIZE 256
+#define PACKET_COUNT 10
+
+typedef struct {
+    struct eth_hdr header;
+    char payload[44];
+
+    lifi_status_t status;
+} eth_packet_t;
 
 typedef enum {
-    LIFI_EMPTY = 0,
-    LIFI_RECEIVED = 1,
-    LIFI_SEND = 2
+    EMPTY = 0,
+    RECEIVED = 1,
+    SEND = 2
 } lifi_status_t;
 
 typedef struct {
-    SemaphoreHandle_t mutex;
-    lifi_status_t status;
-    uint8_t data[LIFI_PACKET_SIZE];
-} lifi_packet_t;
+    // circular buffer of packets
+    eth_packet_t ethToEspPackets[PACKET_COUNT];
+    pthread_mutex_t locks[PACKET_COUNT];
+
+    eth_packet_t ethToEspPacketSendReserved;
+    eth_packet_t ethToEspPacketsRecieveReserved;
+
+    eth_packet_t espToEspPacket;
+} packet_handler_t;
+
+void lifi_packet_init(void);
+
+void send_packet_over_lifi(eth_packet_t *packet);
+
+//dummy function for core 2 packet handler
+void send_receiver_task(void *pvParameters);
 
 //stored packet array (extern - defined in .c file)
-extern lifi_packet_t lifi_packets[10];
-//stored incoming packet (extern - defined in .c file)
-extern lifi_packet_t incoming_lifi_packet;
+extern packet_handler_t lifi_packets;
 
 #endif // LIFI_PACKET_H
