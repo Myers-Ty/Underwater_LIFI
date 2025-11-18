@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit
 from PySide6.QtGui import QIntValidator
 from PySide6.QtCore import QTimer
 
-from progress_bar import ProgressBar90
+from .progress_bar import ProgressBar90
 
 
 
