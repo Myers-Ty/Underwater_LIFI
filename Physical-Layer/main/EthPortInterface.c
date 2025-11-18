@@ -83,9 +83,7 @@ error:
     return INVALID_FD;
 }
 
-/** Creates "echo" message from received frame */
-static void create_echo_frame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len)
-{
+static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
     // Set source address equal to our MAC address
     esp_eth_handle_t eth_hndl = get_example_eth_handle();
     uint8_t mac_addr[ETH_ADDR_LEN];
@@ -96,7 +94,51 @@ static void create_echo_frame(eth_packet_t *in_frame, eth_packet_t *out_frame, i
     // Set Ethernet type
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
-    memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN);    
+    memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
+    
+    printf("Packet Saved 🎊");
+    printf("\n\n");
+}
+
+static void save_frame(eth_packet_t *in_frame, int len)
+{
+        // Print for debugging
+    printf("Data (hex): ");
+    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
+        printf("%02X ", in_frame->payload[i]);
+    }
+    printf("\n");
+    
+    // print as ASCII for readable messages
+    printf("Data (ASCII): ");
+    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
+        char c = (in_frame->payload[i] >= 32 && in_frame->payload[i] <= 126) ? in_frame->payload[i] : '.';
+        printf("%c", c);
+    }
+    printf("\n\n");
+    
+    if (lifi_packets.ethToEspPacketSendReserved.status == EMPTY) {
+        copyFrame(in_frame, &lifi_packets.ethToEspPacketSendReserved, len);
+        lifi_packets.ethToEspPacketSendReserved.status = SEND;
+    } else {
+        for (int i = 0; i < PACKET_COUNT; i++) {
+            pthread_mutex_lock(&lifi_packets.locks[i]);
+            if (lifi_packets.ethToEspPackets[i].status == EMPTY) {
+                copyFrame(in_frame, &lifi_packets.ethToEspPacketSendReserved, len);
+                lifi_packets.ethToEspPackets[i].status = SEND;
+                pthread_mutex_unlock(&lifi_packets.locks[i]);
+                break;
+            }
+            pthread_mutex_unlock(&lifi_packets.locks[i]);
+        }
+        //! TODO: IF SPACE FOR PACKET NOT CURRENTLY FOUND IT IS DROPPED :( PLS FIX
+        
+    }
+}
+
+static void send_frame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len)
+{
+    
 }
 
 // Send a byte over LiFi by manipulating the LED_PIN,
@@ -139,33 +181,18 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                 ESP_LOGI(TAG, "fd %d received %d bytes from %.2x:%.2x:%.2x:%.2x:%.2x:%.2x", eth_tap_fd,
                             len, recv_msg->header.src.addr[0], recv_msg->header.src.addr[1], recv_msg->header.src.addr[2],
                             recv_msg->header.src.addr[3], recv_msg->header.src.addr[4], recv_msg->header.src.addr[5]);
-                
-                // Print for debugging
-                printf("Data (hex): ");
-                for (uint32_t i = 0; i < sizeof(recv_msg->payload) / sizeof(recv_msg->payload[0]); i++) {
-                    printf("%02X ", recv_msg->payload[i]);
-                }
-                printf("\n");
-                
-                // print as ASCII for readable messages
-                printf("Data (ASCII): ");
-                for (uint32_t i = 0; i < sizeof(recv_msg->payload) / sizeof(recv_msg->payload[0]); i++) {
-                    char c = (recv_msg->payload[i] >= 32 && recv_msg->payload[i] <= 126) ? recv_msg->payload[i] : '.';
-                    printf("%c", c);
-                }
-                printf("\n\n");
 
                 // Construct echo frame
                 // Save echo frame to our buffer
                 //! TODO: Create Buffer and store here for transmission
-                eth_packet_t echo_msg;
-                create_echo_frame(recv_msg, &echo_msg, len);
-
-                ssize_t ret = write(eth_tap_fd, &echo_msg, len);
-                if (ret == -1) {
-                    ESP_LOGE(TAG, "L2 TAP fd %d write error: errno: %d", eth_tap_fd, errno);
-                    break;
-                }
+                save_frame(recv_msg, len);
+                
+                //! TODO: Send messages properly
+                // ssize_t ret = write(eth_tap_fd, &echo_msg, len);
+                // if (ret == -1) {
+                //     ESP_LOGE(TAG, "L2 TAP fd %d write error: errno: %d", eth_tap_fd, errno);
+                //     break;
+                // }
             } else {
                 ESP_LOGE(TAG, "L2 TAP fd %d read error: errno %d", eth_tap_fd, errno);
                 break;
