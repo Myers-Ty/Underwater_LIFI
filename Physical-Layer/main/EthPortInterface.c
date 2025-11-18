@@ -252,8 +252,9 @@ void app_main(void)
     // ROV connections on core 0
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     // Sender/Receiver task on core 1 (second core)
-    xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
+    // xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 
     // Lets us send pause frames to stop transmission
-    esp_eth_ioctl(eth_hndl, ETH_CMD_S_FLOW_CTRL, true);
+    bool flow_ctrl_enable = true;
+    esp_eth_ioctl(eth_hndl, ETH_CMD_S_FLOW_CTRL, &flow_ctrl_enable);
 }
