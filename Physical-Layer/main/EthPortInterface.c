@@ -40,7 +40,7 @@ uint16_t eth_type_filter = ETH_TYPE_FILTER_TX;
 
 TaskHandle_t recievedTaskHandler = NULL;
 // must initialize when a packet is recieved from the device otherwise packets are broadcast to nothing
-u8_t compEthAddr = NULL;
+u8_t compEthAddr = 0;
 
 /** Opens and configures L2 TAP file descriptor */
 static int init_l2tap_fd(int flags, uint16_t eth_type_filter)
@@ -214,6 +214,23 @@ error:
     vTaskDelete(NULL);
 }
 
+static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
+    eth_packet_t recieved_msg = {
+            .header = {
+                .src.addr = {0},
+                .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
+                .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
+            }
+        };
+    memcpy(recieved_msg.payload, payload, strlen(recieved_msg.payload));
+    
+    esp_eth_handle_t eth_hndl = get_example_eth_handle();
+    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+
+    // Send the Recieved frame
+    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
+}
+
 //! TODO: Reconstruct Ethernet frame from memory here
 /** Demonstrates of how to construct Ethernet frame for transmit via L2 TAP */
 static void eth_recieved_task(void *pvParameters)
@@ -253,24 +270,6 @@ static void eth_recieved_task(void *pvParameters)
     close(eth_tap_fd);
 error:
     vTaskDelete(NULL);
-}
-
-static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
-    eth_packet_t recieved_msg = {
-            .header = {
-                .src.addr = {0},
-                .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
-                .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
-            },
-            //! TODO: make this more efficient via memcpy
-            .payload = payload
-        };
-        
-    esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
-
-    // Send the Recieved frame
-    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
 }
 
 void app_main(void)
