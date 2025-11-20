@@ -7,7 +7,7 @@ packet_handler_t lifi_packets;
 void lifi_packet_init(void) {
     // Initialize mutexes for packet array
     for (int i = 0; i < PACKET_COUNT; i++) {
-        pthread_mutex_init(&lifi_packets.locks[i], NULL);
+        lifi_packets.locks[i] = xSemaphoreCreateMutex();
         lifi_packets.ethToEspPackets[i].status = EMPTY;
     }
     
