@@ -31,7 +31,9 @@ typedef struct {
     eth_packet_t ethToEspPacketsRecieveReserved;
 
     eth_packet_t espToEspPacket;
+    TaskHandle_t recievedTaskHandler;
 } packet_handler_t;
+
 
 void lifi_packet_init(void);
 

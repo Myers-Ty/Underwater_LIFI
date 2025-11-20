@@ -14,6 +14,8 @@ void lifi_packet_init(void) {
     lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
     lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
     lifi_packets.espToEspPacket.status = EMPTY;
+
+    lifi_packets.recievedTaskHandler = NULL;
 }
 
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
@@ -32,5 +34,8 @@ void send_receiver_task(void *pvParameters)
     //dummy function
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+
+        //! TODO: When something is flagged as recieve you must call following
+        xTaskNotifyGive(lifi_packets.recievedTaskHandler);
     }
 }

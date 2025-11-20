@@ -38,7 +38,6 @@ static const char *TAG = "U-LiFi-Eth";
 
 uint16_t eth_type_filter = ETH_TYPE_FILTER_TX;
 
-TaskHandle_t recievedTaskHandler = NULL;
 // must initialize when a packet is recieved from the device otherwise packets are broadcast to nothing
 u8_t compEthAddr = 0;
 
@@ -223,7 +222,7 @@ static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
             }
         };
     memcpy(recieved_msg.payload, payload, strlen(recieved_msg.payload));
-    
+
     esp_eth_handle_t eth_hndl = get_example_eth_handle();
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
 
@@ -303,7 +302,7 @@ void app_main(void)
     
     // ROV connections on core 0
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
-    xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &recievedTaskHandler, 0);
+    xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
     xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 
