@@ -36,6 +36,10 @@
 
 static const char *TAG = "U-LiFi-Eth";
 
+uint16_t eth_type_filter = ETH_TYPE_FILTER_TX;
+
+// must initialize when a packet is recieved from the device otherwise packets are broadcast to nothing
+u8_t compEthAddr = 0;
 
 /** Opens and configures L2 TAP file descriptor */
 static int init_l2tap_fd(int flags, uint16_t eth_type_filter)
@@ -84,15 +88,16 @@ error:
 }
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
+    //! TODO: make this hardcoded on both ends, it does not need to be transferred each time
     // Set source address equal to our MAC address
-    esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    uint8_t mac_addr[ETH_ADDR_LEN];
-    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
-    memcpy(out_frame->header.src.addr, mac_addr, ETH_ADDR_LEN);
-    // Set destination address equal to source address from where the frame was received
-    memcpy(out_frame->header.dest.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
-    // Set Ethernet type
-    memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
+    // esp_eth_handle_t eth_hndl = get_example_eth_handle();
+    // uint8_t mac_addr[ETH_ADDR_LEN];
+    // esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
+    // memcpy(out_frame->header.src.addr, mac_addr, ETH_ADDR_LEN);
+    // //! TODO: make this use actual address
+    // *out_frame->header.dest.addr = NULL;
+    // // Set Ethernet type
+    // memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
     memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
     
@@ -122,14 +127,14 @@ static void save_frame(eth_packet_t *in_frame, int len)
         lifi_packets.ethToEspPacketSendReserved.status = SEND;
     } else {
         for (int i = 0; i < PACKET_COUNT; i++) {
-            pthread_mutex_lock(&lifi_packets.locks[i]);
+            xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY);
             if (lifi_packets.ethToEspPackets[i].status == EMPTY) {
-                copyFrame(in_frame, &lifi_packets.ethToEspPacketSendReserved, len);
+                copyFrame(in_frame, &lifi_packets.ethToEspPackets[i], len);
                 lifi_packets.ethToEspPackets[i].status = SEND;
-                pthread_mutex_unlock(&lifi_packets.locks[i]);
+                xSemaphoreGive(lifi_packets.locks[i]);
                 break;
             }
-            pthread_mutex_unlock(&lifi_packets.locks[i]);
+            xSemaphoreGive(lifi_packets.locks[i]);
         }
         //! TODO: IF SPACE FOR PACKET NOT CURRENTLY FOUND IT IS DROPPED :( PLS FIX
         
@@ -182,8 +187,7 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                             len, recv_msg->header.src.addr[0], recv_msg->header.src.addr[1], recv_msg->header.src.addr[2],
                             recv_msg->header.src.addr[3], recv_msg->header.src.addr[4], recv_msg->header.src.addr[5]);
 
-                // Construct echo frame
-                // Save echo frame to our buffer
+                // Save frame to our buffer
                 //! TODO: Create Buffer and store here for transmission
                 save_frame(recv_msg, len);
                 
@@ -209,38 +213,58 @@ error:
     vTaskDelete(NULL);
 }
 
+static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
+    eth_packet_t recieved_msg = {
+            .header = {
+                .src.addr = {0},
+                .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
+                .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
+            }
+        };
+    memcpy(recieved_msg.payload, payload, strlen(recieved_msg.payload));
+
+    esp_eth_handle_t eth_hndl = get_example_eth_handle();
+    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+
+    // Send the Recieved frame
+    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
+}
+
 //! TODO: Reconstruct Ethernet frame from memory here
 /** Demonstrates of how to construct Ethernet frame for transmit via L2 TAP */
-static void hello_tx_l2tap_task(void *pvParameters)
+static void eth_recieved_task(void *pvParameters)
 {
-    uint16_t eth_type_filter = ETH_TYPE_FILTER_TX;
+    
     int eth_tap_fd;
-
+    ssize_t ret = 0;
     // Open and configure L2 TAP File descriptor
     if ((eth_tap_fd = init_l2tap_fd(0, eth_type_filter)) == INVALID_FD) {
         goto error;
     }
 
-    // Construct "Hello" frame
-    eth_packet_t hello_msg = {
-        .header = {
-            .src.addr = {0},
-            .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
-            .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
-        },
-        .payload = "ESP32 hello to everybody!"
-    };
-    esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, hello_msg.header.src.addr);
-
     while (1) {
-        // Send the Hello frame
-        ssize_t ret = write(eth_tap_fd, &hello_msg, ETH_HEADER_LEN + strlen(hello_msg.payload));
+
+        // indefinitely wait until woken up
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        
+        // Construct frame
+        if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
+            ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
+            lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+        }
+        for (int i = 0; i < PACKET_COUNT; i++) {
+            xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY);
+            if (lifi_packets.ethToEspPackets[i].status == RECEIVED) {
+                ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
+                lifi_packets.ethToEspPackets[i].status = EMPTY;
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+
         if (ret == -1) {
             ESP_LOGE(TAG, "L2 TAP fd %d write error: errno: %d", eth_tap_fd, errno);
             break;
         }
-        vTaskDelay(pdMS_TO_TICKS(3000));
     }
     close(eth_tap_fd);
 error:
@@ -278,6 +302,7 @@ void app_main(void)
     
     // ROV connections on core 0
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
     xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 

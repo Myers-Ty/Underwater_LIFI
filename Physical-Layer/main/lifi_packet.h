@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "pthread.h"
 #include "lwip/prot/ethernet.h" // Ethernet header
 
 //packet size
@@ -26,13 +25,15 @@ typedef struct {
 typedef struct {
     // circular buffer of packets
     eth_packet_t ethToEspPackets[PACKET_COUNT];
-    pthread_mutex_t locks[PACKET_COUNT];
+    SemaphoreHandle_t locks[PACKET_COUNT];
 
     eth_packet_t ethToEspPacketSendReserved;
     eth_packet_t ethToEspPacketsRecieveReserved;
 
     eth_packet_t espToEspPacket;
+    TaskHandle_t recievedTaskHandler;
 } packet_handler_t;
+
 
 void lifi_packet_init(void);
 
