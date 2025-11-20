@@ -216,12 +216,13 @@ error:
 static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
     eth_packet_t recieved_msg = {
             .header = {
+                //! TODO: currently auto populates as itself aka the esp address, should set to sending computer address
                 .src.addr = {0},
                 .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
                 .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
             }
         };
-    memcpy(recieved_msg.payload, payload, strlen(recieved_msg.payload));
+    memcpy(recieved_msg.payload, payload, 44);
 
     esp_eth_handle_t eth_hndl = get_example_eth_handle();
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
@@ -246,7 +247,8 @@ static void eth_recieved_task(void *pvParameters)
 
         // indefinitely wait until woken up
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        
+        eth_transmit(eth_tap_fd, "TESTTESTTEST");
+        ESP_LOGE(TAG, "BROADCASTING");
         // Construct frame
         if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
             ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
