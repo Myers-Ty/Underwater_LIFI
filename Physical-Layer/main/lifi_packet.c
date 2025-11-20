@@ -1,8 +1,7 @@
 #include "lifi_packet.h"
 
-// Define the global packet arrays
-//stored packet array (extern - defined in .c file)
-extern packet_handler_t lifi_packets;
+// Define the global packet handler
+packet_handler_t lifi_packets;
 
 // Initialize function to create mutexes
 void lifi_packet_init(void) {
@@ -25,6 +24,7 @@ void send_packet_over_lifi(eth_packets_t *packet)
         send_byte(packet->data[i]);
     }
 }
+*/
 
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
@@ -34,4 +34,3 @@ void send_receiver_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
-*/

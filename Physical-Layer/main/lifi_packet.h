@@ -10,18 +10,18 @@
 //packet size
 #define PACKET_COUNT 10
 
+typedef enum {
+    EMPTY = 0,
+    RECEIVED = 1,
+    SEND = 2
+} lifi_status_t;
+
 typedef struct {
     struct eth_hdr header;
     char payload[44];
 
     lifi_status_t status;
 } eth_packet_t;
-
-typedef enum {
-    EMPTY = 0,
-    RECEIVED = 1,
-    SEND = 2
-} lifi_status_t;
 
 typedef struct {
     // circular buffer of packets
