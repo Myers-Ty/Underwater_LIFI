@@ -8,6 +8,7 @@
 #define LED_PIN GPIO_NUM_43
 //our input pin is pin 19
 #define INPUT_PIN GPIO_NUM_19
+#define NOTIFY_BIT 0b11011001
 
 //Clock tick
 #define CLOCK_TICK 1

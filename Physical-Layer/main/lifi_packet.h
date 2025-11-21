@@ -8,6 +8,7 @@
 
 //packet size
 #define PACKET_COUNT 10
+#define LIFI_PAYLOAD_LENGTH 44
 
 typedef enum {
     EMPTY = 0,
@@ -17,7 +18,7 @@ typedef enum {
 
 typedef struct {
     struct eth_hdr header;
-    char payload[44];
+    char payload[LIFI_PAYLOAD_LENGTH];
 
     lifi_status_t status;
 } eth_packet_t;
