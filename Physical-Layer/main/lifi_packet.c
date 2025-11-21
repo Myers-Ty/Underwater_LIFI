@@ -1,5 +1,7 @@
 #include "lifi_packet.h"
 #include "lifi_config.h"
+#include <stdint.h>
+#include <string.h>
 
 // Define the global packet handler
 packet_handler_t lifi_packets;
@@ -43,21 +45,21 @@ char receive_byte() {
     }
     return byte;
 }
-
+Signed/unsigned shifts and mixing types: Use explicit uint8_t/uint16_t for shifts and masks.
 void receieve_packet_over_lifi(eth_packet_t *packet)
 {
     char byte = 0;
     while(1) {
-        char byte = start_receive_sequence();
-        if(byte == NOTIFY_BIT) {
+        byte = start_receive_sequence();
+        if (byte == NOTIFY_BIT) {
             break;
         }
     }
     send_byte(NOTIFY_BIT); // send back notify bit to sender to indicate we are ready to receive the packet
-    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+    for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte(); //dummy data
     }
- 
+
     packet->status = RECEIVED;
 }
 
@@ -65,16 +67,16 @@ char start_receive_sequence() {
     //dummy function to start receive sequence
     char byte = 0;
     int bit = 0;
-    while(bit < 8) {
+    while (bit < 8) {
 
         vTaskDelay(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
-        if(((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
+        if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit++;
         } else {
-            if(bit = 0) {
-            //check if we have a packet to send
-                if(lifi_packets.espToEspPacket.status == SEND) {
+            if (bit == 0) {
+                //check if we have a packet to send
+                if (lifi_packets.espToEspPacket.status == SEND) {
                     return byte;
                 }
             }
@@ -87,9 +89,9 @@ char start_receive_sequence() {
 
 void start_send_sequence() {
     //dummy function to start send sequence
-    while(1) {
+    while (1) {
         send_byte(NOTIFY_BIT);
-        if(receive_byte() == NOTIFY_BIT) {
+        if (receive_byte() == NOTIFY_BIT) {
             break;
         }
     }
@@ -144,12 +146,17 @@ void send_receiver_task(void *pvParameters)
         char byte = start_receive_sequence();
         if(byte == NOTIFY_BIT) {
             eth_packet_t* packet = get_avaliable_receive_packet();
-            receieve_packet_over_lifi(packet);
-        } else if(lifi_packets.espToEspPacket.status == SEND) {
+            if (packet) {
+                receieve_packet_over_lifi(packet);
+                if (lifi_packets.recievedTaskHandler) {
+                    xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+                }
+            }
+
+        } else if (lifi_packets.espToEspPacket.status == SEND) {
             send_lifi_packet();
         }
 
         //! TODO: When something is flagged as recieve you must call following
-        xTaskNotifyGive(lifi_packets.recievedTaskHandler);
     }
 }

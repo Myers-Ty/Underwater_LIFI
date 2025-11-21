@@ -2,6 +2,9 @@
 #define LIFI_PACKET_H
 
 #include <stdint.h>
+#include "driver/gpio.h"
+#include "lifi_config.h"
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/prot/ethernet.h" // Ethernet header
