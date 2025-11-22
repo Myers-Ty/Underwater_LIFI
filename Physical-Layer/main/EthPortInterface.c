@@ -141,23 +141,6 @@ static void save_frame(eth_packet_t *in_frame, int len)
     }
 }
 
-static void send_frame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len)
-{
-    
-}
-
-// Send a byte over LiFi by manipulating the LED_PIN,
-// sends bits LSB first
-void send_byte(uint8_t byte)
-{
-    uint8_t send_data = byte;
-    for(int i = 0; i < 8; i++) {
-        gpio_set_level(LED_PIN, (1 & send_data) ? HIGH : LOW);
-        send_data >>= 1;
-        vTaskDelay(CLOCK_TICK);
-    }
-}
-
 /** Demonstrates usage of L2 TAP non-blocking mode with select */
 static void nonblock_l2tap_echo_task(void *pvParameters)
 {

@@ -596,6 +596,12 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# Example Configuration
+#
+CONFIG_EXAMPLE_ETH_DEINIT_AFTER_S=-1
+# end of Example Configuration
+
+#
 # Example Connection Configuration
 #
 CONFIG_ENV_GPIO_RANGE_MIN=0

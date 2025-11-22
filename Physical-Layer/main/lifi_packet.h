@@ -4,10 +4,14 @@
 #include <stdint.h>
 #include "driver/gpio.h"
 #include "lifi_config.h"
+#include <stdint.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/prot/ethernet.h" // Ethernet header
+//digital read/write functions
+#define digitalWrite(pin, value) gpio_set_level(pin, value)
+#define digitalRead(pin) gpio_get_level(pin)
 
 //packet size
 #define PACKET_COUNT 10
