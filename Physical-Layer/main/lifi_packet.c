@@ -18,14 +18,16 @@ void lifi_packet_init(void) {
     lifi_packets.espToEspPacket.status = EMPTY;
 
     lifi_packets.recievedTaskHandler = NULL;
+
 }
 
 void send_byte(char byte) {
     for (int i = 0; i < 8; i++) {
-        digitalWrite(LED_PIN, 1 & byte);
-        vTaskDelay(CLOCK_TICK);
+        digitalWrite(LED_PIN, byte & 1);
         byte >>= 1;
+        vTaskDelay(CLOCK_TICK);
     }
+    digitalWrite(LED_PIN, 0);
 }
 
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
@@ -33,6 +35,7 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 {
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
+        printf("Sent byte: %02X\n", packet->payload[i]);
     }
 }
 
@@ -51,11 +54,12 @@ char start_receive_sequence() {
     char byte = 0;
     int bit = 0;
     while (bit < 8) {
-
         vTaskDelay(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit++;
+            printf("receved bit: %d\t", bit);
+            printf("byte is: %02X\n", byte);
         } else {
             if (bit == 0) {
                 //check if we have a packet to send
@@ -116,16 +120,17 @@ void print_packet(eth_packet_t *packet) {
 void receieve_packet_over_lifi()
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
-    char byte = 0;
-    while(1) {
-        byte = start_receive_sequence();
-        if (byte == NOTIFY_BIT) {
-            break;
-        }
-    }
-    send_byte(NOTIFY_BIT); // send back notify bit to sender to indicate we are ready to receive the packet
+ 
+    //sleep one tick to switch from receieve to send mode
+    vTaskDelay(CLOCK_TICK);
+    // NOTIFY_BIT already received by start_receive_sequence() in caller
+    // Send acknowledgment
+    send_byte(NOTIFY_BIT);
+    printf("Sent Notify Bit\n");
+    
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
-        packet->payload[i] = receive_byte(); //dummy data
+        packet->payload[i] = receive_byte();
+        printf("Received byte: %02X\n", packet->payload[i]);
     }
 
     packet->status = RECEIVED;
@@ -140,11 +145,18 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(NOTIFY_BIT);
-        if (receive_byte() == NOTIFY_BIT) {
+        char response = receive_byte();
+        if (response == NOTIFY_BIT) {
             break;
         }
+        if(response !=0){
+            printf("Received unexpected byte: %02X\n", response);
+        }
     }
+    //sleep one tick to switch from receive mode back to send mode
+    vTaskDelay(CLOCK_TICK);
 }
+
 
 void send_lifi_packet() {
 
@@ -185,6 +197,5 @@ void send_receiver_task(void *pvParameters)
             printf("Attempting to send packet\n");
             send_lifi_packet();
         }
-
     }
 }
