@@ -70,8 +70,52 @@ char start_receive_sequence() {
     return byte;
 }
 
-void receieve_packet_over_lifi(eth_packet_t *packet)
+
+eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
+    //check if the reserved receive packet is empty
+    if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
+        //set the reserved receive data to the packet data
+        memcpy(&lifi_packets.ethToEspPacketsRecieveReserved, packet, sizeof(eth_packet_t));
+        //mark the reserved receive packet as received (after memcpy to avoid overwriting)
+        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
+        
+        return &lifi_packets.ethToEspPacketsRecieveReserved;
+    }
+    //check the circular buffer for an empty packet
+    for(int i = 0; i < PACKET_COUNT; i++) {
+        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
+            if(lifi_packets.ethToEspPackets[i].status == EMPTY) {
+                memcpy(&lifi_packets.ethToEspPackets[i], packet, sizeof(eth_packet_t));
+                lifi_packets.ethToEspPackets[i].status = RECEIVED;
+                xSemaphoreGive(lifi_packets.locks[i]);
+                return &lifi_packets.ethToEspPackets[i];
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+    }
+    return NULL;
+}
+
+void print_packet(eth_packet_t *packet) {
+        // Print for debugging
+    printf("Data (hex): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        printf("%02X ", packet->payload[i]);
+    }
+    printf("\n");
+    
+    // print as ASCII for readable messages
+    printf("Data (ASCII): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        char c = (packet->payload[i] >= 32 && packet->payload[i] <= 126) ? packet->payload[i] : '.';
+        printf("%c", c);
+    }
+    printf("\n\n");
+}
+
+void receieve_packet_over_lifi()
 {
+    eth_packet_t* packet = &lifi_packets.espToEspPacket;
     char byte = 0;
     while(1) {
         byte = start_receive_sequence();
@@ -85,6 +129,10 @@ void receieve_packet_over_lifi(eth_packet_t *packet)
     }
 
     packet->status = RECEIVED;
+
+    while(!set_receieve_packet(packet));
+
+    print_packet(packet);
 }
 
 
@@ -119,25 +167,6 @@ void send_lifi_packet() {
     }
 }
 
-eth_packet_t* get_avaliable_receive_packet() {
-    //check if the reserved receive packet is empty
-    if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
-        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
-        return &lifi_packets.ethToEspPacketsRecieveReserved;
-    }
-    //check the circular buffer for an empty packet
-    for(int i = 0; i < PACKET_COUNT; i++) {
-        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
-            if(lifi_packets.ethToEspPackets[i].status == EMPTY) {
-                lifi_packets.ethToEspPackets[i].status = RECEIVED;
-                xSemaphoreGive(lifi_packets.locks[i]);
-                return &lifi_packets.ethToEspPackets[i];
-            }
-            xSemaphoreGive(lifi_packets.locks[i]);
-        }
-    }
-    return NULL;
-}
 
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
@@ -146,13 +175,11 @@ void send_receiver_task(void *pvParameters)
         printf("Waiting for packet...\n");
         char byte = start_receive_sequence();
         if(byte == NOTIFY_BIT) {
-            eth_packet_t* packet = get_avaliable_receive_packet();
-            if (packet) {
-                receieve_packet_over_lifi(packet);
-                if (lifi_packets.recievedTaskHandler) {
-                    xTaskNotifyGive(lifi_packets.recievedTaskHandler);
-                }
+            receieve_packet_over_lifi();
+            if (lifi_packets.recievedTaskHandler) {
+                xTaskNotifyGive(lifi_packets.recievedTaskHandler);
             }
+            
 
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
