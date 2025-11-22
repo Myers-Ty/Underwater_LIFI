@@ -160,10 +160,12 @@ void start_send_sequence() {
 
 void send_lifi_packet() {
 
+    
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         start_send_sequence();
         send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
     }
+    int moved_packet = 0;
     //move a circular buffer packet to the reserved send packet if it is marked as SEND
     for (int i = 0; i < PACKET_COUNT; i++) {
         if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
@@ -172,10 +174,14 @@ void send_lifi_packet() {
                 lifi_packets.ethToEspPacketSendReserved.status = SEND;
                 lifi_packets.ethToEspPackets[i].status = EMPTY;
                 xSemaphoreGive(lifi_packets.locks[i]);
+                moved_packet = 1;
                 break;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
         }
+    }
+    if(!moved_packet) {
+        lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
     }
 }
 
