@@ -35,7 +35,7 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 {
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
-        printf("Sent byte: %02X\n", packet->payload[i]);
+        // printf("Sent byte: %02X\n", packet->payload[i]);
     }
 }
 
@@ -58,8 +58,8 @@ char start_receive_sequence() {
         byte |= (digitalRead(INPUT_PIN) << bit);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit++;
-            printf("receved bit: %d\t", bit);
-            printf("byte is: %02X\n", byte);
+            // printf("receved bit: %d\t", bit);
+            // printf("byte is: %02X\n", byte);
         } else {
             if (bit == 0) {
                 //check if we have a packet to send
@@ -130,7 +130,7 @@ void receieve_packet_over_lifi()
     
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
-        printf("Received byte: %02X\n", packet->payload[i]);
+        // printf("Received byte: %02X\n", packet->payload[i]);
     }
 
     packet->status = RECEIVED;
@@ -151,7 +151,7 @@ void start_send_sequence() {
         }
         if(response !=0){
             printf("Received unexpected byte: %02X\n", response);
-        }
+        } 
     }
     //sleep one tick to switch from receive mode back to send mode
     vTaskDelay(CLOCK_TICK);
@@ -174,7 +174,7 @@ void send_lifi_packet() {
                 lifi_packets.ethToEspPacketSendReserved.status = SEND;
                 lifi_packets.ethToEspPackets[i].status = EMPTY;
                 xSemaphoreGive(lifi_packets.locks[i]);
-                moved_packet = 1;
+                    moved_packet = 1;
                 break;
             }
             xSemaphoreGive(lifi_packets.locks[i]);

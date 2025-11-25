@@ -11,4 +11,6 @@
 #define NOTIFY_BIT 0b11011001
 
 //Clock tick
-#define CLOCK_TICK 1
+//CLock speed is 36Mhz
+//led switiching speed is 1KHz, so 36,000 cycles per tick
+#define CLOCK_TICK 5
