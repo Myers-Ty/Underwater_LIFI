@@ -1,6 +1,7 @@
 #include "lifi_packet.h"
 #include "lifi_config.h"
 #include <unistd.h> //for sleep function
+#include "esp_task_wdt.h"
 
 
 // Define the global packet handler
