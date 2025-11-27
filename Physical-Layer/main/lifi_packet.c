@@ -1,4 +1,6 @@
 #include "lifi_packet.h"
+#include "lifi_config.h"
+
 
 // Define the global packet handler
 packet_handler_t lifi_packets;
@@ -16,26 +18,191 @@ void lifi_packet_init(void) {
     lifi_packets.espToEspPacket.status = EMPTY;
 
     lifi_packets.recievedTaskHandler = NULL;
+
 }
 
-//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
-/*
-void send_packet_over_lifi(eth_packets_t *packet)
+void send_byte(char byte) {
+    for (int i = 0; i < 8; i++) {
+        digitalWrite(LED_PIN, byte & 1);
+        byte >>= 1;
+        vTaskDelay(CLOCK_TICK);
+    }
+    digitalWrite(LED_PIN, 0);
+}
+
+//send packet over lifi, in order of bytes 0 -> LIFI_PAYLOAD_LENGTH-1
+void send_packet_data_over_lifi(eth_packet_t *packet)
 {
-    for(int i = 0; i < LIFI_PACKET_SIZE; i++) {
-        send_byte(packet->data[i]);
+    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        send_byte(packet->payload[i]);
+        //debugging
+        // printf("Sent byte: %02X\n", packet->payload[i]);
     }
 }
-*/
+
+char receive_byte() {
+    char byte = 0;
+    for (int i = 0; i < 8; i++) {
+        vTaskDelay(CLOCK_TICK);
+        byte |= (digitalRead(INPUT_PIN) << i);
+    }
+    return byte;
+}
+
+
+char start_receive_sequence() {
+    //dummy function to start receive sequence
+    char byte = 0;
+    int bit = 0;
+    while (bit < 8) {
+        vTaskDelay(CLOCK_TICK);
+        byte |= (digitalRead(INPUT_PIN) << bit);
+        if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
+            bit++;
+            // printf("receved bit: %d\t", bit);
+            // printf("byte is: %02X\n", byte);
+        } else {
+            if (bit == 0) {
+                //check if we have a packet to send
+                if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
+                    return byte;
+                }
+            }
+            bit = 0;
+            byte = 0;
+        }
+    }
+    return byte;
+}
+
+
+eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
+    //check if the reserved receive packet is empty
+    if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
+        //set the reserved receive data to the packet data
+        memcpy(&lifi_packets.ethToEspPacketsRecieveReserved, packet, sizeof(eth_packet_t));
+        //mark the reserved receive packet as received (after memcpy to avoid overwriting)
+        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
+        
+        return &lifi_packets.ethToEspPacketsRecieveReserved;
+    }
+    //check the circular buffer for an empty packet
+    for(int i = 0; i < PACKET_COUNT; i++) {
+        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
+            if(lifi_packets.ethToEspPackets[i].status == EMPTY) {
+                memcpy(&lifi_packets.ethToEspPackets[i], packet, sizeof(eth_packet_t));
+                lifi_packets.ethToEspPackets[i].status = RECEIVED;
+                xSemaphoreGive(lifi_packets.locks[i]);
+                return &lifi_packets.ethToEspPackets[i];
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+    }
+    return NULL;
+}
+
+void print_packet(eth_packet_t *packet) {
+        // Print for debugging
+    printf("Data (hex): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        printf("%02X ", packet->payload[i]);
+    }
+    printf("\n");
+    
+    // print as ASCII for readable messages
+    printf("Data (ASCII): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        char c = (packet->payload[i] >= 32 && packet->payload[i] <= 126) ? packet->payload[i] : '.';
+        printf("%c", c);
+    }
+    printf("\n\n");
+}
+
+void receieve_packet_over_lifi()
+{
+    eth_packet_t* packet = &lifi_packets.espToEspPacket;
+ 
+    //sleep one tick to switch from receieve to send mode
+    vTaskDelay(CLOCK_TICK);
+    // LIFI_PREAMBLE already received by start_receive_sequence() in caller
+    // Send acknowledgment
+    send_byte(LIFI_PREAMBLE);
+    printf("Sent Notify Bit\n");
+    
+    for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        packet->payload[i] = receive_byte();
+        // printf("Received byte: %02X\n", packet->payload[i]);
+    }
+
+    packet->status = RECEIVED;
+
+    while(!set_receieve_packet(packet));
+    // debugging
+    // print_packet(packet);
+}
+
+
+void start_send_sequence() {
+    //dummy function to start send sequence
+    while (1) {
+        send_byte(LIFI_PREAMBLE);
+        char response = receive_byte();
+        if (response == LIFI_PREAMBLE) {
+            break;
+        }
+        if(response !=0){
+            printf("Received unexpected byte: %02X\n", response);
+        } 
+    }
+    //sleep one tick to switch from receive mode back to send mode
+    vTaskDelay(CLOCK_TICK);
+}
+
+
+void send_lifi_packet() {
+
+    
+    if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
+        start_send_sequence();
+        send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
+    }
+    int moved_packet = 0;
+    //move a circular buffer packet to the reserved send packet if it is marked as SEND
+    for (int i = 0; i < PACKET_COUNT; i++) {
+        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
+            if(lifi_packets.ethToEspPackets[i].status == SEND) {
+                memcpy(&lifi_packets.ethToEspPacketSendReserved, &lifi_packets.ethToEspPackets[i], sizeof(eth_packet_t));
+                lifi_packets.ethToEspPacketSendReserved.status = SEND;
+                lifi_packets.ethToEspPackets[i].status = EMPTY;
+                xSemaphoreGive(lifi_packets.locks[i]);
+                    moved_packet = 1;
+                break;
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+    }
+    if(!moved_packet) {
+        lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    }
+}
+
 
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
 {
-    //dummy function
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        printf("Waiting for packet...\n");
+        char byte = start_receive_sequence();
+        if(byte == LIFI_PREAMBLE) {
+            receieve_packet_over_lifi();
+            // if (lifi_packets.recievedTaskHandler) {
+            xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+            // }
+            
 
-        //! TODO: When something is flagged as recieve you must call following
-        xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+        } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
+            printf("Attempting to send packet\n");
+            send_lifi_packet();
+        }
     }
 }

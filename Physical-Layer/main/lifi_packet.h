@@ -2,12 +2,20 @@
 #define LIFI_PACKET_H
 
 #include <stdint.h>
+#include "driver/gpio.h"
+#include "lifi_config.h"
+#include <stdint.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/prot/ethernet.h" // Ethernet header
+//digital read/write functions
+#define digitalWrite(pin, value) gpio_set_level(pin, value)
+#define digitalRead(pin) gpio_get_level(pin)
 
 //packet size
 #define PACKET_COUNT 10
+#define LIFI_PAYLOAD_LENGTH 44
 
 typedef enum {
     EMPTY = 0,
@@ -17,7 +25,7 @@ typedef enum {
 
 typedef struct {
     struct eth_hdr header;
-    char payload[44];
+    char payload[LIFI_PAYLOAD_LENGTH];
 
     lifi_status_t status;
 } eth_packet_t;
