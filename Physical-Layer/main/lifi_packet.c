@@ -23,6 +23,8 @@ void lifi_packet_init(void) {
 }
 
 void send_byte(char byte) {
+    //pet watchdog
+    esp_task_wdt_reset();
     for (int i = 0; i < 8; i++) {
         digitalWrite(LED_PIN, byte & 1);
         byte >>= 1;
@@ -41,6 +43,8 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 }
 
 char receive_byte() {
+    //pet watchdog
+    esp_task_wdt_reset();
     char byte = 0;
     for (int i = 0; i < 8; i++) {
         sleep(CLOCK_TICK);
