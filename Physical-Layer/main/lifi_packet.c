@@ -1,5 +1,6 @@
 #include "lifi_packet.h"
 #include "lifi_config.h"
+#include <unistd.h> //for sleep function
 
 
 // Define the global packet handler
@@ -25,7 +26,7 @@ void send_byte(char byte) {
     for (int i = 0; i < 8; i++) {
         digitalWrite(LED_PIN, byte & 1);
         byte >>= 1;
-        vTaskDelay(CLOCK_TICK);
+        sleep(CLOCK_TICK);
     }
     digitalWrite(LED_PIN, 0);
 }
@@ -42,7 +43,7 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 char receive_byte() {
     char byte = 0;
     for (int i = 0; i < 8; i++) {
-        vTaskDelay(CLOCK_TICK);
+        sleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << i);
     }
     return byte;
@@ -54,7 +55,7 @@ char start_receive_sequence() {
     char byte = 0;
     int bit = 0;
     while (bit < 8) {
-        vTaskDelay(CLOCK_TICK);
+        sleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit++;
@@ -122,7 +123,9 @@ void receieve_packet_over_lifi()
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
  
     //sleep one tick to switch from receieve to send mode
-    vTaskDelay(CLOCK_TICK);
+    while(digitalRead(INPUT_PIN) == HIGH){
+        //wait for line to go high
+    }
     // NOTIFY_BIT already received by start_receive_sequence() in caller
     // Send acknowledgment
     send_byte(NOTIFY_BIT);
@@ -153,8 +156,10 @@ void start_send_sequence() {
             printf("Received unexpected byte: %02X\n", response);
         } 
     }
-    //sleep one tick to switch from receive mode back to send mode
-    vTaskDelay(CLOCK_TICK);
+    
+    while(digitalRead(INPUT_PIN) == HIGH){
+        //wait for line to go low
+    }
 }
 
 
