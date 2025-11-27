@@ -1,6 +1,6 @@
 #include "lifi_packet.h"
 #include "lifi_config.h"
-#include <unistd.h> //for sleep function
+#include <unistd.h>
 #include "esp_task_wdt.h"
 
 
@@ -26,11 +26,14 @@ void lifi_packet_init(void) {
 void send_byte(char byte) {
     //pet watchdog
     // esp_task_wdt_reset();
+    printf("Sending byte: %02X\n", byte);
+
     for (int i = 0; i < 8; i++) {
         digitalWrite(LED_PIN, byte & 1);
         byte >>= 1;
-        sleep(CLOCK_TICK);
+        usleep(CLOCK_TICK);
     }
+
     digitalWrite(LED_PIN, 0);
 }
 
@@ -39,16 +42,15 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 {
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
-        // printf("Sent byte: %02X\n", packet->payload[i]);
     }
 }
 
 char receive_byte() {
     //pet watchdog
-    // esp_task_wdt_reset();
+    esp_task_wdt_reset();
     char byte = 0;
     for (int i = 0; i < 8; i++) {
-        sleep(CLOCK_TICK);
+        usleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << i);
     }
     return byte;
@@ -60,7 +62,9 @@ char start_receive_sequence() {
     char byte = 0;
     int bit = 0;
     while (bit < 8) {
-        sleep(CLOCK_TICK);
+        // printf("petting dog\n");
+        // esp_task_wdt_reset();
+        usleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit++;
@@ -128,9 +132,10 @@ void receieve_packet_over_lifi()
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
  
     //sleep one tick to switch from receieve to send mode
-    while(digitalRead(INPUT_PIN) == HIGH){
-        //wait for line to go high
-    }
+    // while(digitalRead(INPUT_PIN) == HIGH){
+    //     //wait for line to go high
+    // } 
+    usleep(CLOCK_TICK);
     // NOTIFY_BIT already received by start_receive_sequence() in caller
     // Send acknowledgment
     send_byte(NOTIFY_BIT);
@@ -138,7 +143,7 @@ void receieve_packet_over_lifi()
     
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
-        // printf("Received byte: %02X\n", packet->payload[i]);
+        printf("Received byte: %02X\n", packet->payload[i]);
     }
 
     packet->status = RECEIVED;
@@ -155,6 +160,7 @@ void start_send_sequence() {
         send_byte(NOTIFY_BIT);
         char response = receive_byte();
         if (response == NOTIFY_BIT) {
+            printf("Received Notify Bit Ack\n");
             break;
         }
         if(response !=0){
@@ -162,9 +168,10 @@ void start_send_sequence() {
         } 
     }
     
-    while(digitalRead(INPUT_PIN) == HIGH){
-        //wait for line to go low
-    }
+    // while(digitalRead(INPUT_PIN) == HIGH){
+    //     //wait for line to go low
+    // }
+    usleep(CLOCK_TICK);
 }
 
 
