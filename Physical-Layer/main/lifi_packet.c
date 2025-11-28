@@ -26,15 +26,30 @@ void lifi_packet_init(void) {
 void send_byte(char byte) {
     //pet watchdog
     // esp_task_wdt_reset();
-    printf("Sending byte: %02X\n", byte);
+    // printf("Sending byte: %02X\n", byte);
 
-    for (int i = 0; i < 8; i++) {
-        digitalWrite(LED_PIN, byte & 1);
-        byte >>= 1;
+    for (int i = 7; i >=0; i--) {
+        int bit = (byte >> i) & 1;
+        digitalWrite(LED_PIN, bit);
         usleep(CLOCK_TICK);
+        // printf("%d", bit);
     }
+    // printf("\n");
 
     digitalWrite(LED_PIN, 0);
+}
+
+
+char receive_byte() {
+    //pet watchdog
+    // esp_task_wdt_reset();
+    char byte = 0;
+    for (int i = 7; i >=0; i--) {
+        usleep(CLOCK_TICK);
+        int bit = digitalRead(INPUT_PIN);
+        byte |= (bit << i);
+    }
+    return byte;
 }
 
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
@@ -45,42 +60,35 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
     }
 }
 
-char receive_byte() {
-    //pet watchdog
-    esp_task_wdt_reset();
-    char byte = 0;
-    for (int i = 0; i < 8; i++) {
-        usleep(CLOCK_TICK);
-        byte |= (digitalRead(INPUT_PIN) << i);
-    }
-    return byte;
-}
 
 
 char start_receive_sequence() {
     //dummy function to start receive sequence
     char byte = 0;
-    int bit = 0;
-    while (bit < 8) {
+    int bit = 7;
+    while (bit >= 0) {
         // printf("petting dog\n");
         // esp_task_wdt_reset();
         usleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
-            bit++;
-            // printf("receved bit: %d\t", bit);
-            // printf("byte is: %02X\n", byte);
+            bit--;
         } else {
-            if (bit == 0) {
+            if (bit == 7) {
                 //check if we have a packet to send
                 if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
                     return byte;
                 }
             }
-            bit = 0;
+            // printf("byte is: %02X, expected bit: %d, received bit: %d\n", byte, (NOTIFY_BIT >> bit) & 1, (byte >> bit) & 1);
+            bit = 7;
             byte = 0;
         }
     }
+    while(digitalRead(INPUT_PIN) == HIGH){
+        //wait for line to go high
+    } 
+    usleep(CLOCK_TICK / 2); //wait half tick to start receiving data
     return byte;
 }
 
@@ -132,10 +140,7 @@ void receieve_packet_over_lifi()
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
  
     //sleep one tick to switch from receieve to send mode
-    // while(digitalRead(INPUT_PIN) == HIGH){
-    //     //wait for line to go high
-    // } 
-    usleep(CLOCK_TICK);
+
     // NOTIFY_BIT already received by start_receive_sequence() in caller
     // Send acknowledgment
     send_byte(NOTIFY_BIT);
@@ -143,7 +148,7 @@ void receieve_packet_over_lifi()
     
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
-        printf("Received byte: %02X\n", packet->payload[i]);
+        // printf("Received byte: %02X\n", packet->payload[i]);
     }
 
     packet->status = RECEIVED;
@@ -168,10 +173,10 @@ void start_send_sequence() {
         } 
     }
     
-    // while(digitalRead(INPUT_PIN) == HIGH){
-    //     //wait for line to go low
-    // }
-    usleep(CLOCK_TICK);
+    while(digitalRead(INPUT_PIN) == HIGH){
+        //wait for line to go low
+    }
+    usleep(CLOCK_TICK / 2); //wait half tick to start sending data
 }
 
 
