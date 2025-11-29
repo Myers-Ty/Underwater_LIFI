@@ -64,6 +64,8 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
 {
     digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
     e_sleep(CLOCK_TICK); //wait a tick before sending data
+    digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
+    e_sleep(CLOCK_TICK); //wait a tick before sending data
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -151,9 +153,12 @@ void receieve_packet_over_lifi()
     // Send acknowledgment
     send_byte(NOTIFY_BIT);
     printf("Sent Notify Bit\n");
-    e_sleep(CLOCK_TICK); //wait a tick before receiving data
+    // e_sleep(CLOCK_TICK); //wait a tick before receiving data
     while(digitalRead(INPUT_PIN) != HIGH) {
         //wait for line to go high before receiving data
+    }
+    while(digitalRead(INPUT_PIN) != LOW) {
+        //wait for line to go low before receiving data
     }
     e_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
 
