@@ -45,8 +45,8 @@ char receive_byte() {
     // esp_task_wdt_reset();
     char byte = 0;
     for (int i = 7; i >=0; i--) {
-        usleep(CLOCK_TICK);
         int bit = digitalRead(INPUT_PIN);
+        usleep(CLOCK_TICK);
         byte |= (bit << i);
     }
     return byte;
@@ -55,6 +55,8 @@ char receive_byte() {
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
 void send_packet_data_over_lifi(eth_packet_t *packet)
 {
+    digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
+    usleep(CLOCK_TICK); //wait a tick before sending data
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -69,8 +71,8 @@ char start_receive_sequence() {
     while (bit >= 0) {
         // printf("petting dog\n");
         // esp_task_wdt_reset();
-        usleep(CLOCK_TICK);
         byte |= (digitalRead(INPUT_PIN) << bit);
+        usleep(CLOCK_TICK);
         if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
             bit--;
         } else {
@@ -85,10 +87,7 @@ char start_receive_sequence() {
             byte = 0;
         }
     }
-    while(digitalRead(INPUT_PIN) == HIGH){
-        //wait for line to go high
-    } 
-    usleep(CLOCK_TICK / 2); //wait half tick to start receiving data
+
     return byte;
 }
 
@@ -145,7 +144,12 @@ void receieve_packet_over_lifi()
     // Send acknowledgment
     send_byte(NOTIFY_BIT);
     printf("Sent Notify Bit\n");
-    
+    usleep(CLOCK_TICK); //wait a tick before receiving data
+    while(digitalRead(INPUT_PIN) != HIGH) {
+        //wait for line to go high before receiving data
+    }
+    usleep(CLOCK_TICK); //wait a tick before receiving data
+
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
         // printf("Received byte: %02X\n", packet->payload[i]);
@@ -163,6 +167,7 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(NOTIFY_BIT);
+        usleep(CLOCK_TICK);
         char response = receive_byte();
         if (response == NOTIFY_BIT) {
             printf("Received Notify Bit Ack\n");
@@ -173,10 +178,7 @@ void start_send_sequence() {
         } 
     }
     
-    while(digitalRead(INPUT_PIN) == HIGH){
-        //wait for line to go low
-    }
-    usleep(CLOCK_TICK / 2); //wait half tick to start sending data
+
 }
 
 
