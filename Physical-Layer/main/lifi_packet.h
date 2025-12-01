@@ -26,6 +26,7 @@ typedef enum {
 typedef struct {
     struct eth_hdr header;
     char payload[LIFI_PAYLOAD_LENGTH];
+    uint16_t CRC;
 
     lifi_status_t status;
 } eth_packet_t;
