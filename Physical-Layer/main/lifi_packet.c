@@ -169,7 +169,6 @@ void start_send_sequence() {
 
 }
 
-
 void send_lifi_packet() {
 
     
@@ -252,4 +251,16 @@ void send_receive_task(void *pvParameters)
             send();
         }
     }
+    
+    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
+
+
+    lifi_packets.recievedTaskHandler = NULL;
+
+    eth_packet_t* packet = &lifi_packets.espToEspPacket;
+    strcpy(packet->payload, "Im ready to recieve your load");
+    lifi_packets.espToEspPacket.status = RECEIVED;
+    
+    set_receieve_packet(packet);
 }
