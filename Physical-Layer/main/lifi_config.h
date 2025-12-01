@@ -13,4 +13,9 @@
 //Clock tick
 //CLock speed is 36Mhz
 //led switiching speed is 1KHz, so 36,000 cycles per tick
-#define CLOCK_TICK 5
+#define CLOCK_TICK 100 //in microseconds
+
+#include "esp_task_wdt.h"
+#include "esp_timer.h"
+
+void lifi_sleep(int microseconds);
