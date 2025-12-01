@@ -88,6 +88,7 @@ char start_receive_sequence() {
 
 
 eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
+
     //check if the reserved receive packet is empty
     if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
         //set the reserved receive data to the packet data
@@ -156,7 +157,7 @@ void receieve_packet_over_lifi()
 
     while(!set_receieve_packet(packet));
     // debugging
-    // print_packet(packet);
+    print_packet(packet);
 }
 
 

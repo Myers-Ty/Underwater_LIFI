@@ -88,18 +88,13 @@ error:
 }
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
-    //! TODO: make this hardcoded on both ends, it does not need to be transferred each time
-    // Set source address equal to our MAC address
-    // esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    // uint8_t mac_addr[ETH_ADDR_LEN];
-    // esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
-    // memcpy(out_frame->header.src.addr, mac_addr, ETH_ADDR_LEN);
-    // //! TODO: make this use actual address
-    // *out_frame->header.dest.addr = NULL;
-    // // Set Ethernet type
-    // memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
+
+    memcpy(&out_frame->header.src.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
+    //! TODO: set destination address??
+    // Set Ethernet type
+    memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
-    memcpy(out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
+    memcpy(&out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
     
     printf("Packet Saved 🎊");
     printf("\n\n");
@@ -107,7 +102,7 @@ static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) 
 
 static void save_frame(eth_packet_t *in_frame, int len)
 {
-        // Print for debugging
+    // Print for debugging
     printf("Data (hex): ");
     for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
         printf("%02X ", in_frame->payload[i]);
@@ -230,17 +225,18 @@ static void eth_recieved_task(void *pvParameters)
 
         // indefinitely wait until woken up
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        eth_transmit(eth_tap_fd, "TESTTESTTEST");
-        ESP_LOGE(TAG, "BROADCASTING");
+        // Debug print
+        ESP_LOGE(TAG, "Sending packet to Eth");
+
         // Construct frame
         if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
             ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
-            lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+            lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
         }
         for (int i = 0; i < PACKET_COUNT; i++) {
             xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY);
             if (lifi_packets.ethToEspPackets[i].status == RECEIVED) {
-                ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
+                ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPackets[i].payload);
                 lifi_packets.ethToEspPackets[i].status = EMPTY;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
