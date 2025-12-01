@@ -6,22 +6,6 @@
 // Define the global packet handler
 packet_handler_t lifi_packets;
 
-// Initialize function to create mutexes
-void lifi_packet_init(void) {
-    // Initialize mutexes for packet array
-    for (int i = 0; i < PACKET_COUNT; i++) {
-        lifi_packets.locks[i] = xSemaphoreCreateMutex();
-        lifi_packets.ethToEspPackets[i].status = EMPTY;
-    }
-    
-    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
-    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
-    lifi_packets.espToEspPacket.status = EMPTY;
-
-    lifi_packets.recievedTaskHandler = NULL;
-
-}
-
 void send_byte(char byte) {
     // printf("Sending byte: %02X\n", byte);
 
@@ -35,7 +19,6 @@ void send_byte(char byte) {
 
     digitalWrite(LED_PIN, 0);
 }
-
 
 char receive_byte() {
     char byte = 0;
@@ -58,8 +41,6 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
         send_byte(packet->payload[i]);
     }
 }
-
-
 
 char start_receive_sequence() {
     //dummy function to start receive sequence
@@ -85,7 +66,6 @@ char start_receive_sequence() {
 
     return byte;
 }
-
 
 eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
 
@@ -160,7 +140,6 @@ void receieve_packet_over_lifi()
     // print_packet(packet);
 }
 
-
 void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
@@ -178,7 +157,6 @@ void start_send_sequence() {
     
 
 }
-
 
 void send_lifi_packet() {
 
@@ -207,7 +185,6 @@ void send_lifi_packet() {
     }
 }
 
-
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
 {
@@ -226,4 +203,25 @@ void send_receiver_task(void *pvParameters)
             send_lifi_packet();
         }
     }
+}
+
+// Initialize function to create mutexes
+void lifi_packet_init(void) {
+    // Initialize mutexes for packet array
+    for (int i = 0; i < PACKET_COUNT; i++) {
+        lifi_packets.locks[i] = xSemaphoreCreateMutex();
+        lifi_packets.ethToEspPackets[i].status = EMPTY;
+    }
+    
+    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
+
+
+    lifi_packets.recievedTaskHandler = NULL;
+
+    eth_packet_t* packet = &lifi_packets.espToEspPacket;
+    strcpy(packet->payload, "Im ready to recieve your load");
+    lifi_packets.espToEspPacket.status = RECEIVED;
+    
+    set_receieve_packet(packet);
 }
