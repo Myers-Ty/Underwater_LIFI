@@ -1,4 +1,5 @@
 Physical-Layer/build/*
+Physical-Layer/dependencies.lock
 .vscode/*
 GUI/Testing/venv_for_TestEth/*
 GUI/Testing/venv/*
