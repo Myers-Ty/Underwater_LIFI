@@ -165,7 +165,7 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
+        lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
         char response = receive_byte();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
