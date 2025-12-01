@@ -1,3 +1,4 @@
+
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
 from UI.incoming_data_widget import IncomingDataWidget
 
@@ -7,7 +8,7 @@ from UI.metric_widget import MetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
 from Packets.send_logic import send_eth_frame
 import sys
-
+ETH_TYPE_2 = 0x2221
 app = QApplication(sys.argv)
 
 window = QWidget()
@@ -29,7 +30,7 @@ def handle_send_message(message: str):
 
     print(f"Handle sending message: {message}")
     # Here you would add the logic to actually send the message via your communication protocol
-    send_eth_frame(message, eth_type=0x0800, dest_mac=dest_mac)  # Example usage
+    send_eth_frame(message, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
 
