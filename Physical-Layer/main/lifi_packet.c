@@ -157,7 +157,7 @@ void receieve_packet_over_lifi()
 
     while(!set_receieve_packet(packet));
     // debugging
-    print_packet(packet);
+    // print_packet(packet);
 }
 
 
