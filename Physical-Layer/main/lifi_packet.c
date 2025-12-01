@@ -1,15 +1,7 @@
 #include "lifi_packet.h"
 #include "lifi_config.h"
 #include <unistd.h>
-#include "esp_task_wdt.h"
-#include "esp_timer.h"
 
-void e_sleep(int microseconds) {
-    int start = esp_timer_get_time();
-    while (esp_timer_get_time() - start < microseconds) {
-        //busy wait
-    }
-}
 
 // Define the global packet handler
 packet_handler_t lifi_packets;
@@ -31,14 +23,12 @@ void lifi_packet_init(void) {
 }
 
 void send_byte(char byte) {
-    //pet watchdog
-    // esp_task_wdt_reset();
     // printf("Sending byte: %02X\n", byte);
 
     for (int i = 7; i >=0; i--) {
         int bit = (byte >> i) & 1;
         digitalWrite(LED_PIN, bit);
-        e_sleep(CLOCK_TICK);
+        lifi_sleep(CLOCK_TICK);
         // printf("%d", bit);
     }
     // printf("\n");
@@ -48,12 +38,10 @@ void send_byte(char byte) {
 
 
 char receive_byte() {
-    //pet watchdog
-    // esp_task_wdt_reset();
     char byte = 0;
     for (int i = 7; i >=0; i--) {
         int bit = digitalRead(INPUT_PIN);
-        e_sleep(CLOCK_TICK);
+        lifi_sleep(CLOCK_TICK);
         byte |= (bit << i);
     }
     return byte;
@@ -63,9 +51,9 @@ char receive_byte() {
 void send_packet_data_over_lifi(eth_packet_t *packet)
 {
     digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
-    e_sleep(CLOCK_TICK); //wait a tick before sending data
+    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
     digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
-    e_sleep(CLOCK_TICK); //wait a tick before sending data
+    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -78,10 +66,8 @@ char start_receive_sequence() {
     char byte = 0;
     int bit = 7;
     while (bit >= 0) {
-        // printf("petting dog\n");
-        // esp_task_wdt_reset();
         byte |= (digitalRead(INPUT_PIN) << bit);
-        e_sleep(CLOCK_TICK);
+        lifi_sleep(CLOCK_TICK);
         if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
             bit--;
         } else {
@@ -153,14 +139,13 @@ void receieve_packet_over_lifi()
     // Send acknowledgment
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
-    // e_sleep(CLOCK_TICK); //wait a tick before receiving data
     while(digitalRead(INPUT_PIN) != HIGH) {
         //wait for line to go high before receiving data
     }
     while(digitalRead(INPUT_PIN) != LOW) {
         //wait for line to go low before receiving data
     }
-    e_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
+    lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
 
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
@@ -179,7 +164,7 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        e_sleep(CLOCK_TICK);
+        lifi_sleep(CLOCK_TICK);
         char response = receive_byte();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
@@ -225,8 +210,6 @@ void send_lifi_packet() {
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
 {
-    // Register this task with the watchdog
-    // esp_task_wdt_add(NULL);
     while (1) {
         printf("Waiting for packet...\n");
         char byte = start_receive_sequence();
