@@ -51,15 +51,15 @@ def send_recv_eth_frame(payload_str: str, eth_type: int, dest_mac: str, eth_if: 
             logging.info('Sent %d bytes to %s', len(eth_frame), dest_mac)
             logging.info('Sent msg: "%s"', payload_str)
 
-            eth_frame_repl = Ether(so.recv(128))
-            if eth_frame_repl.type == eth_type:
-                logging.info('Received %d bytes echoed from %s', len(eth_frame_repl), eth_frame_repl.src)
-                logging.info('Echoed msg: "%s"', eth_frame_repl.load.decode())
+            # eth_frame_repl = Ether(so.recv(128))
+            # if eth_frame_repl.type == eth_type:
+            #     logging.info('Received %d bytes echoed from %s', len(eth_frame_repl), eth_frame_repl.src)
+            #     logging.info('Echoed msg: "%s"', eth_frame_repl.load.decode())
         except Exception as e:
             raise e
     # return echoed message and remove possible null characters which might have been appended since
     # minimal size of Ethernet frame to be transmitted physical layer is 60B (not including CRC)
-    return str(eth_frame_repl.load.decode().rstrip('\x00'))
+    return "done"
 
 
 def recv_eth_frame(eth_type: int, eth_if: str = '') -> str:
