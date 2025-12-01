@@ -138,6 +138,7 @@ void receieve_packet_over_lifi()
 
     // LIFI_PREAMBLE already received by start_receive_sequence() in caller
     // Send acknowledgment
+    lifi_sleep(CLOCK_TICK / 2); //wait a tick before sending data
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
     while(digitalRead(INPUT_PIN) != HIGH) {
