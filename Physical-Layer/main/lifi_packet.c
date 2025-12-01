@@ -82,7 +82,7 @@ char start_receive_sequence() {
         // esp_task_wdt_reset();
         byte |= (digitalRead(INPUT_PIN) << bit);
         e_sleep(CLOCK_TICK);
-        if (((byte >> bit) & 1) == ((NOTIFY_BIT >> bit) & 1)) {
+        if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
             bit--;
         } else {
             if (bit == 7) {
@@ -91,7 +91,7 @@ char start_receive_sequence() {
                     return byte;
                 }
             }
-            // printf("byte is: %02X, expected bit: %d, received bit: %d\n", byte, (NOTIFY_BIT >> bit) & 1, (byte >> bit) & 1);
+            // printf("byte is: %02X, expected bit: %d, received bit: %d\n", byte, (LIFI_PREAMBLE >> bit) & 1, (byte >> bit) & 1);
             bit = 7;
             byte = 0;
         }
@@ -149,9 +149,9 @@ void receieve_packet_over_lifi()
  
     //sleep one tick to switch from receieve to send mode
 
-    // NOTIFY_BIT already received by start_receive_sequence() in caller
+    // LIFI_PREAMBLE already received by start_receive_sequence() in caller
     // Send acknowledgment
-    send_byte(NOTIFY_BIT);
+    send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
     // e_sleep(CLOCK_TICK); //wait a tick before receiving data
     while(digitalRead(INPUT_PIN) != HIGH) {
@@ -170,18 +170,18 @@ void receieve_packet_over_lifi()
     packet->status = RECEIVED;
 
     while(!set_receieve_packet(packet));
-
-    print_packet(packet);
+    // debugging
+    // print_packet(packet);
 }
 
 
 void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
-        send_byte(NOTIFY_BIT);
+        send_byte(LIFI_PREAMBLE);
         e_sleep(CLOCK_TICK);
         char response = receive_byte();
-        if (response == NOTIFY_BIT) {
+        if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
             break;
         }
@@ -230,11 +230,11 @@ void send_receiver_task(void *pvParameters)
     while (1) {
         printf("Waiting for packet...\n");
         char byte = start_receive_sequence();
-        if(byte == NOTIFY_BIT) {
+        if(byte == LIFI_PREAMBLE) {
             receieve_packet_over_lifi();
-            if (lifi_packets.recievedTaskHandler) {
-                xTaskNotifyGive(lifi_packets.recievedTaskHandler);
-            }
+            // if (lifi_packets.recievedTaskHandler) {
+            xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+            // }
             
 
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {

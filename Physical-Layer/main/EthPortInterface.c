@@ -274,13 +274,13 @@ error:
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
+
+    ESP_LOGI(TAG, "U-LiFi Initialized");
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Starting U-LiFi Ethernet Example");
     initialize_gpio();
-    ESP_LOGI(TAG, "Starting U-LiFi Ethernet Example");
 
     // Initialize L2 TAP VFS interface
     ESP_ERROR_CHECK(esp_vfs_l2tap_intf_register(NULL));

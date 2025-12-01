@@ -29,13 +29,19 @@ This project is the embedded software communication protocol for establishing co
   idf.py menuconfig
 ```
 * Inside the menu go to Example Connection Configuration -> Enable SPI. Set Ethernet Type to W5500 Module. Set the following:
-* (12)    SPI SCLK GPIO number
-* (11)    SPI MOSI GPIO number
-* (13)    SPI MISO GPIO number
-* (10)    SPI CS GPIO number
-* (36)    SPI clock speed (MHz)
-* (9)     Interrupt GPIO number
-* (8)     PHY Reset GPIO number
+```
+(12)    SPI SCLK GPIO number
+(11)    SPI MOSI GPIO number
+(13)    SPI MISO GPIO number
+(10)    SPI CS GPIO number
+(36)    SPI clock speed (MHz)
+(9)     Interrupt GPIO number
+(8)     PHY Reset GPIO number
+```
+* Step out of the menu then go to (Top) → Component config → LWIP. Then set the following:
+```
+Enable IPV4 Link-Local Addressing (AUTOIP)
+```
 
 * Press `S` to save, then press `Q` to quit. 
 
