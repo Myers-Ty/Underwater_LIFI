@@ -147,7 +147,33 @@ void send_packet(eth_packet_t *packet)
     }
 }
 
+<<<<<<< HEAD
 void send() {
+=======
+
+void start_send_sequence() {
+    //dummy function to start send sequence
+    while (1) {
+        send_byte(LIFI_PREAMBLE);
+        lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
+        char response = receive_byte();
+        if (response == LIFI_PREAMBLE) {
+            printf("Received Notify Bit Ack\n");
+            break;
+        }
+        if(response !=0){
+            printf("Received unexpected byte: %02X\n", response);
+        } 
+    }
+    
+
+}
+
+
+void send_lifi_packet() {
+
+    
+>>>>>>> 87b4fa19 (stopped trying dumb things)
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         send_sequence_start();
         send_packet(&lifi_packets.ethToEspPacketSendReserved);
