@@ -92,5 +92,5 @@ xkit==0.0.0
 yt-dlp==2024.9.27
 pytest-embedded
 scapy
-pySide6
-pyqtgraph
+pySide6==6.9.2
+pyqtgraph==0.13.7
