@@ -204,7 +204,7 @@ char start_receive_sequence() {
     return byte;
 }
 
-void send_lifi_packet() {
+void send() {
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         send_sequence_start();
         send_packet(&lifi_packets.ethToEspPacketSendReserved);
