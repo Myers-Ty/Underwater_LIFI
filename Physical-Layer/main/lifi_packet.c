@@ -151,9 +151,9 @@ void send_packet(eth_packet_t *packet)
     lifi_sleep(CLOCK_TICK); //wait a tick before sending data
     digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
     lifi_sleep(CLOCK_TICK); //wait a tick before sending data
-    send_byte(*packet->header.src.addr);
-    send_byte((packet->header.type >> 8) & 0xFF);
-    send_byte(packet->header.type & 0xFF);
+    // send_byte((char)*packet->header.src.addr);
+    // send_byte((char)((packet->header.type >> 8) & 0xFF));
+    // send_byte((char)(packet->header.type & 0xFF));
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -239,8 +239,8 @@ void receive()
     // Send acknowledgment
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
-    *packet->header.src.addr = receive_byte();
-    packet->header.type = (receive_byte() << 8) | receive_byte();
+    // *packet->header.src.addr = receive_byte();
+    // packet->header.type = (receive_byte() << 8) | receive_byte();
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
         // printf("Received byte: %02X\n", packet->payload[i]);
