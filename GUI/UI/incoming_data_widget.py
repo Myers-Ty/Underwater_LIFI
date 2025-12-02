@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit
+import time
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QTextBrowser
 from PySide6.QtGui import QIntValidator
 from PySide6.QtCore import QTimer
 
@@ -32,8 +33,11 @@ class IncomingDataWidget(QWidget):
         self.endButton = QPushButton("End Progress Bar")
         self.endButton.clicked.connect(lambda : self.progressBar.end_progress_bar())
         self.box_layout.addWidget(self.endButton)
+        self.log = QTextBrowser()
+        self.box_layout.addWidget(self.log) 
 
-
+    def add_log(self, message: str):
+        self.log.append(time.strftime("[%H:%M:%S]") + " " + message)    
 
     def run_progress_bar(self):
         self.progressBar.run_progress_bar(int(self.number.text()))

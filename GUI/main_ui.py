@@ -1,14 +1,17 @@
 
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
+from PySide6.QtCore import QThread, Signal
 from UI.incoming_data_widget import IncomingDataWidget
 
 from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import send_eth_frame
+from Packets.send_logic import send_eth_frame, recv_eth_frame
 import sys
 ETH_TYPE_2 = 0x2221
+ETH_TYPE_3 = 0x2223
+
 app = QApplication(sys.argv)
 
 window = QWidget()
@@ -16,9 +19,10 @@ window = QWidget()
 grid_layout = QGridLayout()
 
 outgoing_data_widget = OutgoingDataWidget()
+incoming_data_widget = IncomingDataWidget()
 
 grid_layout.addWidget(outgoing_data_widget, 0, 0)
-grid_layout.addWidget(IncomingDataWidget(), 0, 1)
+grid_layout.addWidget(incoming_data_widget, 0, 1)
 grid_layout.addWidget(MetricWidget(), 1, 0)
 grid_layout.addWidget(MetricWidget(), 1, 1)
 
@@ -36,7 +40,21 @@ outgoing_data_widget.send_signal.connect(handle_send_message)
 
 window.setLayout(grid_layout)
 
+def handle_receieve_message() -> str:
+    return recv_eth_frame(ETH_TYPE_3)
 
+def receiver_event_loop():
+    print("Starting receiver event loop")
+    while True:
+        try:
+            message = handle_receieve_message()
+            print(f"Received message: {message}")
+            incoming_data_widget.add_log(message)
+        except Exception as e:
+            continue
 
+receiver_thread = QThread()
+receiver_thread.run = receiver_event_loop
+receiver_thread.start()
 window.show()
 app.exec()
