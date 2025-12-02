@@ -159,10 +159,6 @@ void send_packet(eth_packet_t *packet)
     }
 }
 
-<<<<<<< HEAD
-void send() {
-=======
-
 void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
@@ -209,9 +205,6 @@ char start_receive_sequence() {
 }
 
 void send_lifi_packet() {
-
-    
->>>>>>> 87b4fa19 (stopped trying dumb things)
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         send_sequence_start();
         send_packet(&lifi_packets.ethToEspPacketSendReserved);

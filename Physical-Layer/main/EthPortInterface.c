@@ -88,18 +88,10 @@ error:
 }
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
-
-<<<<<<< HEAD
     memcpy(&out_frame->header.src.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
     //! TODO: set destination address??
     // Set Ethernet type
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
-=======
-    memcpy(out_frame->header.src.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
-    //! TODO: set destination address??
-    // Set Ethernet type
-    memcpy(out_frame->header.type, in_frame->header.type, sizeof(uint16_t));
->>>>>>> 8eca5d6d (WIP)
     // Copy the payload
     memcpy(&out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
     
