@@ -86,6 +86,57 @@ eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
     return NULL;
 }
 
+<<<<<<< HEAD
+=======
+void print_packet(eth_packet_t *packet) {
+        // Print for debugging
+    printf("Data (hex): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        printf("%02X ", packet->payload[i]);
+    }
+    printf("\n");
+    
+    // print as ASCII for readable messages
+    printf("Data (ASCII): ");
+    for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
+        char c = (packet->payload[i] >= 32 && packet->payload[i] <= 126) ? packet->payload[i] : '.';
+        printf("%c", c);
+    }
+    printf("\n\n");
+}
+
+void receieve_packet_over_lifi()
+{
+    eth_packet_t* packet = &lifi_packets.espToEspPacket;
+ 
+    //sleep one tick to switch from receieve to send mode
+
+    // LIFI_PREAMBLE already received by start_receive_sequence() in caller
+    // Send acknowledgment
+    send_byte(LIFI_PREAMBLE);
+    printf("Sent Notify Bit\n");
+    while(digitalRead(INPUT_PIN) != HIGH) {
+        //wait for line to go high before receiving data
+    }
+    while(digitalRead(INPUT_PIN) != LOW) {
+        //wait for line to go low before receiving data
+    }
+    lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
+
+    for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        packet->payload[i] = receive_byte();
+        // printf("Received byte: %02X\n", packet->payload[i]);
+    }
+
+    packet->status = RECEIVED;
+
+    while(!set_receieve_packet(packet));
+    // debugging
+    // print_packet(packet);
+}
+
+
+>>>>>>> da252848 (comment out debug)
 void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
