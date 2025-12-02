@@ -191,16 +191,15 @@ error:
     vTaskDelete(NULL);
 }
 
-static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
+static ssize_t eth_transmit(int eth_tap_fd, eth_packet_t *packet) {
     eth_packet_t recieved_msg = {
             .header = {
-                //! TODO: currently auto populates as itself aka the esp address, should set to sending computer address
-                .src.addr = {0},
                 .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
                 .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
             }
         };
-    memcpy(recieved_msg.payload, payload, 44);
+    memcpy(recieved_msg.header.src.addr, packet->header.src.addr, ETH_ADDR_LEN);
+    memcpy(recieved_msg.payload, packet->payload, 44);
 
     esp_eth_handle_t eth_hndl = get_example_eth_handle();
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
@@ -230,13 +229,13 @@ static void eth_recieved_task(void *pvParameters)
 
         // Construct frame
         if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
-            ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
+            ret = eth_transmit(eth_tap_fd, &lifi_packets.ethToEspPacketsRecieveReserved);
             lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
         }
         for (int i = 0; i < PACKET_COUNT; i++) {
             xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY);
             if (lifi_packets.ethToEspPackets[i].status == RECEIVED) {
-                ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPackets[i].payload);
+                ret = eth_transmit(eth_tap_fd, &lifi_packets.ethToEspPackets[i]);
                 lifi_packets.ethToEspPackets[i].status = EMPTY;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
@@ -309,7 +308,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
-    xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(send_receive_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 
     // Lets us send pause frames to stop transmission
     //! TODO: Fix flow control because currently enabling it fails :(
