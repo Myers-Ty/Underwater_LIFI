@@ -5,6 +5,20 @@
 // Define the global packet handler
 packet_handler_t lifi_packets;
 
+void lifi_packet_init(void) {
+    // Initialize mutexes for packet array
+    for (int i = 0; i < PACKET_COUNT; i++) {
+        lifi_packets.locks[i] = xSemaphoreCreateMutex();
+        lifi_packets.ethToEspPackets[i].status = EMPTY;
+    }
+    
+    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
+    lifi_packets.espToEspPacket.status = EMPTY;
+
+    lifi_packets.recievedTaskHandler = NULL;
+}
+
 void print_packet(eth_packet_t *packet) {
         // Print for debugging
     printf("Data (hex): ");
@@ -32,8 +46,17 @@ void send_byte(char byte) {
         // printf("%d", bit);
     }
     // printf("\n");
-
     digitalWrite(LED_PIN, 0);
+}
+
+char receive_byte() {
+    char byte = 0;
+    for (int i = 7; i >=0; i--) {
+        int bit = digitalRead(INPUT_PIN);
+        lifi_sleep(CLOCK_TICK);
+        byte |= (bit << i);
+    }
+    return byte;
 }
 
 char receive_byte_no_final_sleep() {
@@ -48,22 +71,18 @@ char receive_byte_no_final_sleep() {
     return byte;
 }
 
-char receive_byte() {
-    char byte = 0;
-    for (int i = 7; i >=0; i--) {
-        int bit = digitalRead(INPUT_PIN);
-        lifi_sleep(CLOCK_TICK);
-        byte |= (bit << i);
-    }
-    return byte;
-}
-
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
-void send_packet(eth_packet_t *packet)
+void send_packet_data_over_lifi(eth_packet_t *packet)
 {
-    // send_byte((char)*packet->header.src.addr);
-    // send_byte((char)((packet->header.type >> 8) & 0xFF));
-    // send_byte((char)(packet->header.type & 0xFF));
+    
+    for (int i = 0; i < ETH_HWADDR_LEN; i++) {
+        send_byte(packet->header.src.addr[i]);
+    }
+    // for (int i = 0; i < ETH_HWADDR_LEN; i++) {
+    //     packet->header.dest.addr[i] = receive_byte();
+    // }
+    // send_byte((packet->header.type >> 8) & 0xFF);
+    // send_byte((packet->header.type & 0xFF));
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -113,7 +132,7 @@ void send_sequence_start() {
 
 }
 
-char receive_sequence_start() {
+char recieve_sequence_start() {
     //dummy function to start receive sequence
     char byte = 0;
     int bit = 7;
@@ -140,10 +159,12 @@ char receive_sequence_start() {
     return byte;
 }
 
-void send() {
+void send_lifi_packet() {
+
+    
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         send_sequence_start();
-        send_packet(&lifi_packets.ethToEspPacketSendReserved);
+        send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
     }
     int moved_packet = 0;
     //move a circular buffer packet to the reserved send packet if it is marked as SEND
@@ -165,63 +186,49 @@ void send() {
     }
 }
 
-void receive()
+void receive_lifi_packet()
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
- 
-    //sleep one tick to switch from receieve to send mode
 
-    // LIFI_PREAMBLE already received by receive_sequence_start() in caller
-    // Send acknowledgment
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
-    // *packet->header.src.addr = receive_byte();
+    for (int i = 0; i < ETH_HWADDR_LEN; i++) {
+        packet->header.src.addr[i] = receive_byte();
+    }
+    // for (int i = 0; i < ETH_HWADDR_LEN; i++) {
+    //     packet->header.dest.addr[i] = receive_byte();
+    // }
     // packet->header.type = (receive_byte() << 8) | receive_byte();
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
         // printf("Received byte: %02X\n", packet->payload[i]);
     }
+
     packet->status = RECEIVED;
 
     while(!set_receieve_packet(packet));
-    // debugging
-    // print_packet(packet);
+    print_packet(packet);
 }
 
-//dummy function for core 2 packet handler
+// packet handler on core 2
 void send_receive_task(void *pvParameters)
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
-    strcpy(packet->payload, "Im ready to receive your load");
+    strcpy(packet->payload, "Im ready to recieve your load");
     lifi_packets.espToEspPacket.status = RECEIVED;
     set_receieve_packet(packet);
     xTaskNotifyGive(lifi_packets.recievedTaskHandler);
 
     while (1) {
         printf("Waiting for packet...\n");
-        char byte = receive_sequence_start();
+        char byte = recieve_sequence_start();
         if(byte == LIFI_PREAMBLE) {
-            receive();
-            xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+            receive_lifi_packet();
+            xTaskNotifyGive(lifi_packets.recievedTaskHandler);           
 
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
-            send();
+            send_lifi_packet();
         }
-    }    
-}
-
-// Initialize function to create mutexes
-void lifi_packet_init(void) {
-    // Initialize mutexes for packet array
-    for (int i = 0; i < PACKET_COUNT; i++) {
-        lifi_packets.locks[i] = xSemaphoreCreateMutex();
-        lifi_packets.ethToEspPackets[i].status = EMPTY;
     }
-    
-    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
-    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
-    lifi_packets.espToEspPacket.status = EMPTY;
-
-    lifi_packets.recievedTaskHandler = NULL;
 }

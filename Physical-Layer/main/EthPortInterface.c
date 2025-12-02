@@ -88,7 +88,7 @@ error:
 }
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
-    memcpy(&out_frame->header.src.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
+    memcpy(&out_frame->header.src.addr, &in_frame->header.src.addr, ETH_ADDR_LEN);
     //! TODO: set destination address??
     // Set Ethernet type
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
@@ -101,21 +101,6 @@ static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) 
 
 static void save_frame(eth_packet_t *in_frame, int len)
 {
-    // Print for debugging
-    printf("Data (hex): ");
-    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
-        printf("%02X ", in_frame->payload[i]);
-    }
-    printf("\n");
-    
-    // print as ASCII for readable messages
-    printf("Data (ASCII): ");
-    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
-        char c = (in_frame->payload[i] >= 32 && in_frame->payload[i] <= 126) ? in_frame->payload[i] : '.';
-        printf("%c", c);
-    }
-    printf("\n\n");
-    
     if (lifi_packets.ethToEspPacketSendReserved.status == EMPTY) {
         copyFrame(in_frame, &lifi_packets.ethToEspPacketSendReserved, len);
         lifi_packets.ethToEspPacketSendReserved.status = SEND;
@@ -197,11 +182,21 @@ static ssize_t eth_transmit(int eth_tap_fd, eth_packet_t *packet) {
                 .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
             }
         };
-    memcpy(recieved_msg.header.src.addr, packet->header.src.addr, ETH_ADDR_LEN);
+
     memcpy(recieved_msg.payload, packet->payload, 44);
 
-    esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+    // If no src address is given, then the esp assigns itself as the source
+    if (packet->header.src.addr[0] || 
+        packet->header.src.addr[1] || 
+        packet->header.src.addr[2] ||
+        packet->header.src.addr[3] ||
+        packet->header.src.addr[4] || 
+        packet->header.src.addr[5]) {
+        memcpy(recieved_msg.header.src.addr, packet->header.src.addr, ETH_ADDR_LEN);
+    } else {
+        esp_eth_handle_t eth_hndl = get_example_eth_handle();
+        esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+    }
 
     // Send the Recieved frame
     return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));

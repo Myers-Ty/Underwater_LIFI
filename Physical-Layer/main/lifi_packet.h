@@ -43,6 +43,8 @@ typedef struct {
     TaskHandle_t recievedTaskHandler;
 } packet_handler_t;
 
+void print_packet(eth_packet_t *packet);
+
 void lifi_packet_init(void);
 
 void send_packet(eth_packet_t *packet);
