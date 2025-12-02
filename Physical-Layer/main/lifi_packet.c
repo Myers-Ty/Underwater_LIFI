@@ -239,13 +239,6 @@ void receive()
     // Send acknowledgment
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
-    while(digitalRead(INPUT_PIN) != HIGH) {
-        //wait for line to go high before receiving data
-    }
-    while(digitalRead(INPUT_PIN) != LOW) {
-        //wait for line to go low before receiving data
-    }
-    lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
     *packet->header.src.addr = receive_byte();
     packet->header.type = (receive_byte() << 8) | receive_byte();
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
