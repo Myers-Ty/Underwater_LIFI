@@ -147,10 +147,6 @@ eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
 void send_packet(eth_packet_t *packet)
 {
-    digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
-    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
-    digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
-    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
     // send_byte((char)*packet->header.src.addr);
     // send_byte((char)((packet->header.type >> 8) & 0xFF));
     // send_byte((char)(packet->header.type & 0xFF));
