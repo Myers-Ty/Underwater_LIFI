@@ -58,6 +58,43 @@ char receive_byte() {
     return byte;
 }
 
+eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
+
+    //check if the reserved receive packet is empty
+    if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
+        //set the reserved receive data to the packet data
+        memcpy(&lifi_packets.ethToEspPacketsRecieveReserved, packet, sizeof(eth_packet_t));
+        //mark the reserved receive packet as received (after memcpy to avoid overwriting)
+        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
+        
+        return &lifi_packets.ethToEspPacketsRecieveReserved;
+    }
+    //check the circular buffer for an empty packet
+    for(int i = 0; i < PACKET_COUNT; i++) {
+        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
+            if(lifi_packets.ethToEspPackets[i].status == EMPTY) {
+                memcpy(&lifi_packets.ethToEspPackets[i], packet, sizeof(eth_packet_t));
+                lifi_packets.ethToEspPackets[i].status = RECEIVED;
+                xSemaphoreGive(lifi_packets.locks[i]);
+                return &lifi_packets.ethToEspPackets[i];
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+    }
+    return NULL;
+}
+
+//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
+void send_packet(eth_packet_t *packet)
+{
+    // send_byte((char)*packet->header.src.addr);
+    // send_byte((char)((packet->header.type >> 8) & 0xFF));
+    // send_byte((char)(packet->header.type & 0xFF));
+    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        send_byte(packet->payload[i]);
+    }
+}
+
 void send_sequence_start() {
     //dummy function to start send sequence
     while (1) {
@@ -101,43 +138,6 @@ char receive_sequence_start() {
     }
 
     return byte;
-}
-
-eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
-
-    //check if the reserved receive packet is empty
-    if(lifi_packets.ethToEspPacketsRecieveReserved.status == EMPTY) {
-        //set the reserved receive data to the packet data
-        memcpy(&lifi_packets.ethToEspPacketsRecieveReserved, packet, sizeof(eth_packet_t));
-        //mark the reserved receive packet as received (after memcpy to avoid overwriting)
-        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
-        
-        return &lifi_packets.ethToEspPacketsRecieveReserved;
-    }
-    //check the circular buffer for an empty packet
-    for(int i = 0; i < PACKET_COUNT; i++) {
-        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
-            if(lifi_packets.ethToEspPackets[i].status == EMPTY) {
-                memcpy(&lifi_packets.ethToEspPackets[i], packet, sizeof(eth_packet_t));
-                lifi_packets.ethToEspPackets[i].status = RECEIVED;
-                xSemaphoreGive(lifi_packets.locks[i]);
-                return &lifi_packets.ethToEspPackets[i];
-            }
-            xSemaphoreGive(lifi_packets.locks[i]);
-        }
-    }
-    return NULL;
-}
-
-//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
-void send_packet(eth_packet_t *packet)
-{
-    // send_byte((char)*packet->header.src.addr);
-    // send_byte((char)((packet->header.type >> 8) & 0xFF));
-    // send_byte((char)(packet->header.type & 0xFF));
-    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
-        send_byte(packet->payload[i]);
-    }
 }
 
 void send() {
