@@ -53,6 +53,18 @@ void send_byte(char byte) {
     digitalWrite(LED_PIN, 0);
 }
 
+char receive_byte_no_final_sleep() {
+    char byte = 0;
+    for (int i = 7; i >=0; i--) {
+        int bit = digitalRead(INPUT_PIN);
+        if(i !=0){
+            lifi_sleep(CLOCK_TICK);
+        }
+        byte |= (bit << i);
+    }
+    return byte;
+}
+
 char receive_byte() {
     char byte = 0;
     for (int i = 7; i >=0; i--) {
@@ -155,8 +167,8 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
-        char response = receive_byte();
+        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
+        char response = receive_byte_no_final_sleep();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
             break;
@@ -175,7 +187,9 @@ char start_receive_sequence() {
     int bit = 7;
     while (bit >= 0) {
         byte |= (digitalRead(INPUT_PIN) << bit);
-        lifi_sleep(CLOCK_TICK);
+        if(bit != 0){
+            lifi_sleep(CLOCK_TICK);
+        }
         if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
             bit--;
         } else {
