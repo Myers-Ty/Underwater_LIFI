@@ -18,8 +18,6 @@ void lifi_packet_init(void) {
     lifi_packets.espToEspPacket.status = EMPTY;
 
     lifi_packets.recievedTaskHandler = NULL;
-
-    
 }
 
 void print_packet(eth_packet_t *packet) {
@@ -79,8 +77,8 @@ void send_sequence_start() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
-        char response = receive_byte();
+        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
+        char response = receive_byte_no_final_sleep();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
             break;
@@ -99,7 +97,9 @@ char receive_sequence_start() {
     int bit = 7;
     while (bit >= 0) {
         byte |= (digitalRead(INPUT_PIN) << bit);
-        lifi_sleep(CLOCK_TICK);
+        if(bit != 0){
+            lifi_sleep(CLOCK_TICK);
+        }
         if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
             bit--;
         } else {
@@ -153,51 +153,6 @@ void send_packet(eth_packet_t *packet)
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
-}
-
-void start_send_sequence() {
-    //dummy function to start send sequence
-    while (1) {
-        send_byte(LIFI_PREAMBLE);
-        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
-        char response = receive_byte_no_final_sleep();
-        if (response == LIFI_PREAMBLE) {
-            printf("Received Notify Bit Ack\n");
-            break;
-        }
-        if(response !=0){
-            printf("Received unexpected byte: %02X\n", response);
-        } 
-    }
-    
-
-}
-
-char start_receive_sequence() {
-    //dummy function to start receive sequence
-    char byte = 0;
-    int bit = 7;
-    while (bit >= 0) {
-        byte |= (digitalRead(INPUT_PIN) << bit);
-        if(bit != 0){
-            lifi_sleep(CLOCK_TICK);
-        }
-        if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
-            bit--;
-        } else {
-            if (bit == 7) {
-                //check if we have a packet to send
-                if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
-                    return byte;
-                }
-            }
-            // printf("byte is: %02X, expected bit: %d, received bit: %d\n", byte, (LIFI_PREAMBLE >> bit) & 1, (byte >> bit) & 1);
-            bit = 7;
-            byte = 0;
-        }
-    }
-
-    return byte;
 }
 
 void send() {
