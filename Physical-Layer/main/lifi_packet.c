@@ -58,6 +58,17 @@ char receive_byte() {
     return byte;
 }
 
+//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
+void send_packet(eth_packet_t *packet)
+{
+    // send_byte((char)*packet->header.src.addr);
+    // send_byte((char)((packet->header.type >> 8) & 0xFF));
+    // send_byte((char)(packet->header.type & 0xFF));
+    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        send_byte(packet->payload[i]);
+    }
+}
+
 eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
 
     //check if the reserved receive packet is empty
@@ -82,17 +93,6 @@ eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
         }
     }
     return NULL;
-}
-
-//send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
-void send_packet(eth_packet_t *packet)
-{
-    // send_byte((char)*packet->header.src.addr);
-    // send_byte((char)((packet->header.type >> 8) & 0xFF));
-    // send_byte((char)(packet->header.type & 0xFF));
-    for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
-        send_byte(packet->payload[i]);
-    }
 }
 
 void send_sequence_start() {
