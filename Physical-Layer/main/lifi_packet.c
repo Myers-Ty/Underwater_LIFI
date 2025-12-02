@@ -282,13 +282,5 @@ void send_receive_task(void *pvParameters)
             printf("Attempting to send packet\n");
             send();
         }
-    }
-    
-    lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
-    lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
-    lifi_packets.espToEspPacket.status = EMPTY;
-
-    lifi_packets.recievedTaskHandler = NULL;
-
-    
+    }    
 }
