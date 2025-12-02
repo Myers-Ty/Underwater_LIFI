@@ -273,10 +273,7 @@ void send_receive_task(void *pvParameters)
         char byte = receive_sequence_start();
         if(byte == LIFI_PREAMBLE) {
             receive();
-            // if (lifi_packets.recievedTaskHandler) {
             xTaskNotifyGive(lifi_packets.recievedTaskHandler);
-            // }
-            
 
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
