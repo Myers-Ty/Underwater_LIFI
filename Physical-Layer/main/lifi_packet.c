@@ -174,16 +174,19 @@ void send_lifi_packet() {
     
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
         bool ack_recieved = false;
-
-        *lifi_packets.ethToEspPacketSendReserved.CRC = calculate_crc(&lifi_packets.ethToEspPacketSendReserved);
+        u16_t crc = calculate_crc(&lifi_packets.ethToEspPacketSendReserved);
+        memcpy(lifi_packets.ethToEspPacketSendReserved.CRC, &crc, sizeof(crc));
+        print_packet(&lifi_packets.ethToEspPacketSendReserved);
         do {
             send_sequence_start();
             send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
             lifi_sleep(CLOCK_TICK);
-            if (recieve_sequence_start() == LIFI_PREAMBLE) {
+            if (receive_byte() == LIFI_PREAMBLE) {
                 ack_recieved = true;
             }
+            printf("CRC Failed \n");
         } while (!ack_recieved);
+        printf("CRC Passed \n");
     }
     int moved_packet = 0;
     //move a circular buffer packet to the reserved send packet if it is marked as SEND
@@ -249,9 +252,10 @@ void send_receive_task(void *pvParameters)
 
             if (calculate_crc(packet) == *(u16_t*)packet->CRC) {
                 // send empty preamble as ack
-                send_sequence_start();
+                send_byte(LIFI_PREAMBLE);
 
                 while(!set_receieve_packet(&packet_recv));
+                printf("CRC Match!: value is %04X\n", *(u16_t*)packet->CRC);
                 print_packet(&packet_recv);
                 xTaskNotifyGive(lifi_packets.recievedTaskHandler);    
             } else {
