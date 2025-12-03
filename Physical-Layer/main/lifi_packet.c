@@ -186,6 +186,47 @@ void receive_lifi_packet()
     // print_packet(packet);
 }
 
+void echo_packet() {
+    eth_packet_t* packet = &lifi_packets.ethToEspPacketSendReserved;
+
+    //move the reserved send packet to a receieve packet
+    eth_packet_t temp_packet;
+    memcpy(&temp_packet, packet, sizeof(eth_packet_t));
+    temp_packet.status = RECEIVED;
+    while(!set_receieve_packet(&temp_packet));
+    xTaskNotifyGive(lifi_packets.recievedTaskHandler);
+    //move a circular buffer packet to the reserved send packet if it is marked as SEND
+    int moved_packet = 0;
+    for (int i = 0; i < PACKET_COUNT; i++) {
+        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
+            if(lifi_packets.ethToEspPackets[i].status == SEND) {
+                memcpy(&lifi_packets.ethToEspPacketSendReserved, &lifi_packets.ethToEspPackets[i], sizeof(eth_packet_t));
+                lifi_packets.ethToEspPacketSendReserved.status = SEND;
+                lifi_packets.ethToEspPackets[i].status = EMPTY;
+                xSemaphoreGive(lifi_packets.locks[i]);
+                    moved_packet = 1;
+                break;
+            }
+            xSemaphoreGive(lifi_packets.locks[i]);
+        }
+    }
+    if(!moved_packet) {
+        lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
+    }   
+}
+
+//take all incoming packets(from ethernet) and just send them back
+void echo_packets_back(void *pvParameters)
+{
+    printf("Starting Echo Packet Task\n");
+    while(1) {
+        if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
+            echo_packet();
+        }
+    }
+
+}
+
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters)
 {

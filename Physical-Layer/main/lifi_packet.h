@@ -50,6 +50,8 @@ void send_packet_over_lifi(eth_packet_t *packet);
 //dummy function for core 2 packet handler
 void send_receiver_task(void *pvParameters);
 
+void echo_packets_back(void *pvParameters);
+
 //stored packet array (extern - defined in .c file)
 extern packet_handler_t lifi_packets;
 

@@ -52,6 +52,6 @@ class OutgoingDataWidget(QWidget):
 
 
     def select_file(self):
-        filename, _ = QFileDialog.getOpenFileName(parent=self, caption="Open File", dir=".", filter="Text Files (*.txt);;All Files (*.*)")
+        filename, _ = QFileDialog.getOpenFileName(parent=self, caption="Open File", dir=".", filter="All Files (*.*)")
         if filename:
             self.send_file_signal.emit(filename)
