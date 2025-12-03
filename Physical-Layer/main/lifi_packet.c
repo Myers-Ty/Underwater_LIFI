@@ -39,7 +39,7 @@ void print_packet(eth_packet_t *packet) {
 u16_t calculate_crc(eth_packet_t *packet) {
     u16_t crc = 0x0000;
     uint8_t *data = (uint8_t *)packet;
-    size_t length = ETH_HWADDR_LEN + LIFI_PAYLOAD_LENGTH + LIFI_CRC_LENGTH;
+    size_t length = ETH_HWADDR_LEN + LIFI_PAYLOAD_LENGTH;
 
     for (size_t i = 0; i < length; i++) {
         crc += data[i];
@@ -180,7 +180,7 @@ void send_lifi_packet() {
         *lifi_packets.ethToEspPacketSendReserved.CRC = calculate_crc(&lifi_packets.ethToEspPacketSendReserved);
         send_sequence_start();
         send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
-        
+
         while (recieve_sequence_start() != LIFI_PREAMBLE); // wait indefinitely for the ack
     }
     int moved_packet = 0;
@@ -206,7 +206,6 @@ void send_lifi_packet() {
 eth_packet_t receive_lifi_packet()
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
-    bool crc_match = true;
 
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
@@ -245,16 +244,14 @@ void send_receive_task(void *pvParameters)
         char byte = recieve_sequence_start();
         if(byte == LIFI_PREAMBLE) {
             eth_packet_t packet_recv = receive_lifi_packet();
-            bool crc_match = false;
-            do {
-                if (calculate_crc(packet) == packet->CRC) {
-                    crc_match = true;
-                    // send empty preamble as ack
-                    send_sequence_start();
-                } else {
-                    printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), packet->CRC);
-                }
-            } while(!crc_match);
+
+            while (calculate_crc(packet) != packet->CRC) {
+                printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), packet->CRC);
+                packet_recv = receive_lifi_packet();
+            }
+            // send empty preamble as ack
+            send_sequence_start();
+
             while(!set_receieve_packet(&packet_recv));
             print_packet(&packet_recv);
             xTaskNotifyGive(lifi_packets.recievedTaskHandler);           
