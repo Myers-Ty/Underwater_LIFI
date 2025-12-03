@@ -8,14 +8,15 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "lwip/prot/ethernet.h" // Ethernet header
-//digital read/write functions
+#include "lwip/prot/ethernet.h" 
+
 #define digitalWrite(pin, value) gpio_set_level(pin, value)
 #define digitalRead(pin) gpio_get_level(pin)
 
 //packet size
 #define PACKET_COUNT 10
 #define LIFI_PAYLOAD_LENGTH 44
+#define LIFI_CRC_LENGTH 2
 
 typedef enum {
     EMPTY = 0,
@@ -26,7 +27,7 @@ typedef enum {
 typedef struct {
     struct eth_hdr header;
     char payload[LIFI_PAYLOAD_LENGTH];
-    uint16_t CRC;
+    u8_t CRC[LIFI_CRC_LENGTH];
 
     lifi_status_t status;
 } eth_packet_t;
@@ -49,7 +50,6 @@ void lifi_packet_init(void);
 
 void send_packet(eth_packet_t *packet);
 
-//dummy function for core 2 packet handler
 void send_receive_task(void *pvParameters);
 
 //stored packet array (extern - defined in .c file)

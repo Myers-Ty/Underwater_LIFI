@@ -36,6 +36,17 @@ void print_packet(eth_packet_t *packet) {
     printf("\n\n");
 }
 
+u16_t calculate_crc(eth_packet_t *packet) {
+    u16_t crc = 0x0000;
+    uint8_t *data = (uint8_t *)packet;
+    size_t length = ETH_HWADDR_LEN + LIFI_PAYLOAD_LENGTH + LIFI_CRC_LENGTH;
+
+    for (size_t i = 0; i < length; i++) {
+        crc += data[i];
+    }
+    return crc;
+}
+
 void send_byte(char byte) {
     // printf("Sending byte: %02X\n", byte);
 
@@ -86,6 +97,9 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
+    for (int i = 0; i < LIFI_CRC_LENGTH; i++) {
+        send_byte(packet->CRC[i]);
+    }
 }
 
 eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
@@ -118,7 +132,6 @@ void send_sequence_start() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
         char response = receive_byte_no_final_sleep();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
@@ -160,11 +173,15 @@ char recieve_sequence_start() {
 }
 
 void send_lifi_packet() {
-
     
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
+        bool ack_recieved = false;
+
+        *lifi_packets.ethToEspPacketSendReserved.CRC = calculate_crc(&lifi_packets.ethToEspPacketSendReserved);
         send_sequence_start();
         send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
+        
+        while (recieve_sequence_start() != LIFI_PREAMBLE); // wait indefinitely for the ack
     }
     int moved_packet = 0;
     //move a circular buffer packet to the reserved send packet if it is marked as SEND
@@ -186,9 +203,10 @@ void send_lifi_packet() {
     }
 }
 
-void receive_lifi_packet()
+eth_packet_t receive_lifi_packet()
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
+    bool crc_match = true;
 
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
@@ -204,10 +222,13 @@ void receive_lifi_packet()
         // printf("Received byte: %02X\n", packet->payload[i]);
     }
 
+    for (int i = 0; i < LIFI_CRC_LENGTH; i++) {
+        packet->CRC[i] = receive_byte();
+    }
+
     packet->status = RECEIVED;
 
-    while(!set_receieve_packet(packet));
-    print_packet(packet);
+    return *packet;
 }
 
 // packet handler on core 2
@@ -223,7 +244,19 @@ void send_receive_task(void *pvParameters)
         printf("Waiting for packet...\n");
         char byte = recieve_sequence_start();
         if(byte == LIFI_PREAMBLE) {
-            receive_lifi_packet();
+            eth_packet_t packet_recv = receive_lifi_packet();
+            bool crc_match = false;
+            do {
+                if (calculate_crc(packet) == packet->CRC) {
+                    crc_match = true;
+                    // send empty preamble as ack
+                    send_sequence_start();
+                } else {
+                    printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), packet->CRC);
+                }
+            } while(!crc_match);
+            while(!set_receieve_packet(&packet_recv));
+            print_packet(&packet_recv);
             xTaskNotifyGive(lifi_packets.recievedTaskHandler);           
 
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
