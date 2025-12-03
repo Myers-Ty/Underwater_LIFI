@@ -1,4 +1,6 @@
 import time
+import os
+import pwd
 from PySide6.QtWidgets import QFileDialog, QWidget, QVBoxLayout, QPushButton, QLineEdit, QTextBrowser, QComboBox
 from PySide6.QtGui import QIntValidator
 from PySide6.QtCore import QTimer
@@ -51,7 +53,7 @@ class IncomingDataWidget(QWidget):
 
 
     def add_file(self, title: str, content: str):
-        self.files[title] = content
+        self.files[title] = content.rstrip(b'\x00')
         self.receieved_select.addItem(title)
         self.add_log(f"File '{title}' received with size {len(content)} bytes.")
 
@@ -65,6 +67,9 @@ class IncomingDataWidget(QWidget):
         if title in self.files:
             with open(path, 'wb') as f:
                 f.write(self.files[title])
+            user_name = os.getenv('SUDO_USER') or os.getenv('USER')
+            user_info = pwd.getpwnam(user_name)
+            os.chown(path, user_info.pw_uid, user_info.pw_gid)
             self.receieved_select.removeItem(self.receieved_select.currentIndex())
             self.files.pop(title)
             self.add_log(f"File '{title}' saved to '{path}'.")

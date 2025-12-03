@@ -34,14 +34,14 @@ def handle_send_message(message: str):
 
     print(f"Handle sending message: {message}")
     # Here you would add the logic to actually send the message via your communication protocol
-    send_eth_frame(message, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')  # Example usage
+    send_eth_frame(message.encode(), ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
 outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff'))
 
 window.setLayout(grid_layout)
 
-def handle_receieve_message() -> str:
+def handle_receieve_message() -> bytes:
     return recv_eth_frame(ETH_TYPE_3)
 
 def receiver_event_loop():
@@ -49,12 +49,14 @@ def receiver_event_loop():
     while True:
         try:
             message = handle_receieve_message()
-            if(message.__contains__("LONGPACKET[")):
+            print(f"Received raw message: {message}")
+            if(message.__contains__(b"LONGPACKET[")):
+                print("Processing large packet...\n\n\n\n\n\n")
                 # process large packet, getting length from between brackets
-                start_index = message.index("[") + 1
-                end_index = message.index("]")
-                length_str = message[start_index:end_index]
-                length = intify_length(length_str)
+                start_index = message.index(b"[") + 1
+                end_index = message.index(b"]")
+                length_bytes = message[start_index:end_index]
+                length = intify_length(length_bytes)
                 print(f"Expecting {length} packets")
                 # receive large data
                 title, message = recv_large_data(ETH_TYPE_3, length=length)
@@ -62,7 +64,7 @@ def receiver_event_loop():
                 incoming_data_widget.add_file(title, message)
                 continue
             print(f"Received message: {message}")
-            incoming_data_widget.add_log(message)
+            incoming_data_widget.add_log(message.decode(errors='ignore'))
 
         except Exception as e:
             continue
