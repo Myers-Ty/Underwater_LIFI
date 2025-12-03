@@ -206,7 +206,7 @@ static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
 
     // Send the Recieved frame
-    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + LIFI_PAYLOAD_LENGTH);
+    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
 }
 
 //! TODO: Reconstruct Ethernet frame from memory here
@@ -309,7 +309,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
-    xTaskCreatePinnedToCore(echo_packets_back, "hello_tx", 4096, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 
     // Lets us send pause frames to stop transmission
     //! TODO: Fix flow control because currently enabling it fails :(

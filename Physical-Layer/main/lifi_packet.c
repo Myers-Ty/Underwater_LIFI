@@ -37,6 +37,18 @@ void send_byte(char byte) {
     digitalWrite(LED_PIN, 0);
 }
 
+char receive_byte_no_final_sleep() {
+    char byte = 0;
+    for (int i = 7; i >=0; i--) {
+        int bit = digitalRead(INPUT_PIN);
+        if(i !=0){
+            lifi_sleep(CLOCK_TICK);
+        }
+        byte |= (bit << i);
+    }
+    return byte;
+}
+
 char receive_byte() {
     char byte = 0;
     for (int i = 7; i >=0; i--) {
@@ -50,10 +62,10 @@ char receive_byte() {
 //send packet over lifi, in order of bytes 0 -> LIFI_PACKET_SIZE-1
 void send_packet_data_over_lifi(eth_packet_t *packet)
 {
-    digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
-    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
-    digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
-    lifi_sleep(CLOCK_TICK); //wait a tick before sending data
+    // digitalWrite(LED_PIN, 1); //set high to indicate start of packet transmission
+    // lifi_sleep(CLOCK_TICK); //wait a tick before sending data
+    // digitalWrite(LED_PIN, 0); //set low to indicate start of packet transmission
+    // lifi_sleep(CLOCK_TICK); //wait a tick before sending data
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
@@ -90,8 +102,8 @@ void start_send_sequence() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
-        char response = receive_byte();
+        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
+        char response = receive_byte_no_final_sleep();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
             break;
@@ -110,7 +122,9 @@ char start_receive_sequence() {
     int bit = 7;
     while (bit >= 0) {
         byte |= (digitalRead(INPUT_PIN) << bit);
-        lifi_sleep(CLOCK_TICK);
+        if(bit != 0){
+            lifi_sleep(CLOCK_TICK);
+        }
         if (((byte >> bit) & 1) == ((LIFI_PREAMBLE >> bit) & 1)) {
             bit--;
         } else {
@@ -166,13 +180,13 @@ void receive_lifi_packet()
     // Send acknowledgment
     send_byte(LIFI_PREAMBLE);
     printf("Sent Notify Bit\n");
-    while(digitalRead(INPUT_PIN) != HIGH) {
-        //wait for line to go high before receiving data
-    }
-    while(digitalRead(INPUT_PIN) != LOW) {
-        //wait for line to go low before receiving data
-    }
-    lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
+    // while(digitalRead(INPUT_PIN) != HIGH) {
+    //     //wait for line to go high before receiving data
+    // }
+    // while(digitalRead(INPUT_PIN) != LOW) {
+    //     //wait for line to go low before receiving data
+    // }
+    // lifi_sleep(CLOCK_TICK + (CLOCK_TICK / 2)); //wait a tick before receiving data
 
     for (int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         packet->payload[i] = receive_byte();
@@ -184,47 +198,6 @@ void receive_lifi_packet()
     while(!set_receieve_packet(packet));
     // debugging
     // print_packet(packet);
-}
-
-void echo_packet() {
-    eth_packet_t* packet = &lifi_packets.ethToEspPacketSendReserved;
-
-    //move the reserved send packet to a receieve packet
-    eth_packet_t temp_packet;
-    memcpy(&temp_packet, packet, sizeof(eth_packet_t));
-    temp_packet.status = RECEIVED;
-    while(!set_receieve_packet(&temp_packet));
-    xTaskNotifyGive(lifi_packets.recievedTaskHandler);
-    //move a circular buffer packet to the reserved send packet if it is marked as SEND
-    int moved_packet = 0;
-    for (int i = 0; i < PACKET_COUNT; i++) {
-        if(xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY) == pdTRUE) {
-            if(lifi_packets.ethToEspPackets[i].status == SEND) {
-                memcpy(&lifi_packets.ethToEspPacketSendReserved, &lifi_packets.ethToEspPackets[i], sizeof(eth_packet_t));
-                lifi_packets.ethToEspPacketSendReserved.status = SEND;
-                lifi_packets.ethToEspPackets[i].status = EMPTY;
-                xSemaphoreGive(lifi_packets.locks[i]);
-                    moved_packet = 1;
-                break;
-            }
-            xSemaphoreGive(lifi_packets.locks[i]);
-        }
-    }
-    if(!moved_packet) {
-        lifi_packets.ethToEspPacketSendReserved.status = EMPTY;
-    }   
-}
-
-//take all incoming packets(from ethernet) and just send them back
-void echo_packets_back(void *pvParameters)
-{
-    printf("Starting Echo Packet Task\n");
-    while(1) {
-        if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
-            echo_packet();
-        }
-    }
-
 }
 
 //dummy function for core 2 packet handler
