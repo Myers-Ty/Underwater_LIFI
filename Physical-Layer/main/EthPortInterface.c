@@ -88,8 +88,7 @@ error:
 }
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
-
-    memcpy(&out_frame->header.src.addr, in_frame->header.src.addr, ETH_ADDR_LEN);
+    memcpy(&out_frame->header.src.addr, &in_frame->header.src.addr, ETH_ADDR_LEN);
     //! TODO: set destination address??
     // Set Ethernet type
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
@@ -102,21 +101,6 @@ static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) 
 
 static void save_frame(eth_packet_t *in_frame, int len)
 {
-    // Print for debugging
-    printf("Data (hex): ");
-    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
-        printf("%02X ", in_frame->payload[i]);
-    }
-    printf("\n");
-    
-    // print as ASCII for readable messages
-    printf("Data (ASCII): ");
-    for (uint32_t i = 0; i < sizeof(in_frame->payload) / sizeof(in_frame->payload[0]); i++) {
-        char c = (in_frame->payload[i] >= 32 && in_frame->payload[i] <= 126) ? in_frame->payload[i] : '.';
-        printf("%c", c);
-    }
-    printf("\n\n");
-    
     if (lifi_packets.ethToEspPacketSendReserved.status == EMPTY) {
         copyFrame(in_frame, &lifi_packets.ethToEspPacketSendReserved, len);
         lifi_packets.ethToEspPacketSendReserved.status = SEND;
@@ -191,22 +175,31 @@ error:
     vTaskDelete(NULL);
 }
 
-static ssize_t eth_transmit(int eth_tap_fd, char *payload) {
+static ssize_t eth_transmit(int eth_tap_fd, eth_packet_t *packet) {
     eth_packet_t recieved_msg = {
             .header = {
-                //! TODO: currently auto populates as itself aka the esp address, should set to sending computer address
-                .src.addr = {0},
                 .dest.addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, // broadcast address
                 .type = htons(eth_type_filter)                     // convert to big endian (network) byte order
             }
         };
-    memcpy(recieved_msg.payload, payload, 44);
 
-    esp_eth_handle_t eth_hndl = get_example_eth_handle();
-    esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+    memcpy(recieved_msg.payload, packet->payload, 44);
+
+    // If no src address is given, then the esp assigns itself as the source
+    if (packet->header.src.addr[0] || 
+        packet->header.src.addr[1] || 
+        packet->header.src.addr[2] ||
+        packet->header.src.addr[3] ||
+        packet->header.src.addr[4] || 
+        packet->header.src.addr[5]) {
+        memcpy(recieved_msg.header.src.addr, packet->header.src.addr, ETH_ADDR_LEN);
+    } else {
+        esp_eth_handle_t eth_hndl = get_example_eth_handle();
+        esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, recieved_msg.header.src.addr);
+    }
 
     // Send the Recieved frame
-    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
+    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + LIFI_PAYLOAD_LENGTH);
 }
 
 //! TODO: Reconstruct Ethernet frame from memory here
@@ -230,13 +223,13 @@ static void eth_recieved_task(void *pvParameters)
 
         // Construct frame
         if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
-            ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPacketsRecieveReserved.payload);
+            ret = eth_transmit(eth_tap_fd, &lifi_packets.ethToEspPacketsRecieveReserved);
             lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
         }
         for (int i = 0; i < PACKET_COUNT; i++) {
             xSemaphoreTake(lifi_packets.locks[i], portMAX_DELAY);
             if (lifi_packets.ethToEspPackets[i].status == RECEIVED) {
-                ret = eth_transmit(eth_tap_fd, lifi_packets.ethToEspPackets[i].payload);
+                ret = eth_transmit(eth_tap_fd, &lifi_packets.ethToEspPackets[i]);
                 lifi_packets.ethToEspPackets[i].status = EMPTY;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
@@ -309,7 +302,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
-    xTaskCreatePinnedToCore(send_receiver_task, "hello_tx", 4096, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(send_receive_task, "hello_tx", 4096, NULL, 4, NULL, 1);
 
     // Lets us send pause frames to stop transmission
     //! TODO: Fix flow control because currently enabling it fails :(

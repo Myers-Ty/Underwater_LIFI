@@ -26,6 +26,7 @@ typedef enum {
 typedef struct {
     struct eth_hdr header;
     char payload[LIFI_PAYLOAD_LENGTH];
+    // uint16_t CRC;
 
     lifi_status_t status;
 } eth_packet_t;
@@ -42,13 +43,14 @@ typedef struct {
     TaskHandle_t recievedTaskHandler;
 } packet_handler_t;
 
+void print_packet(eth_packet_t *packet);
 
 void lifi_packet_init(void);
 
-void send_packet_over_lifi(eth_packet_t *packet);
+void send_packet(eth_packet_t *packet);
 
 //dummy function for core 2 packet handler
-void send_receiver_task(void *pvParameters);
+void send_receive_task(void *pvParameters);
 
 //stored packet array (extern - defined in .c file)
 extern packet_handler_t lifi_packets;

@@ -51,17 +51,4 @@ Enable IPV4 Link-Local Addressing (AUTOIP)
 
 ## Testing the Interface
 
-* Create a venv from the requirements.txt file by running
-```
-  python3 -m venv venv_for_TestEth
-  source venv_for_TestEth/bin/activate
-
-  pip install -r 'requirements.txt'
-```
-
-* Then exit the venv and run the test script with the following
-```
-deactivate
-sudo ./venv_for_TestEth/bin/python3  TestEth.py
-```
-
+* Please refer to the GUI folder's README
