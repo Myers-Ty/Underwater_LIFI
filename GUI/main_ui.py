@@ -7,7 +7,7 @@ from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import send_eth_frame, recv_eth_frame
+from Packets.send_logic import send_eth_frame, recv_eth_frame, intify_length, recv_large_data, send_file
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
@@ -37,6 +37,7 @@ def handle_send_message(message: str):
     send_eth_frame(message, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
+outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff'))
 
 window.setLayout(grid_layout)
 
@@ -48,8 +49,21 @@ def receiver_event_loop():
     while True:
         try:
             message = handle_receieve_message()
+            if(message.__contains__("LONGPACKET[")):
+                # process large packet, getting length from between brackets
+                start_index = message.index("[") + 1
+                end_index = message.index("]")
+                length_str = message[start_index:end_index]
+                length = intify_length(length_str)
+                print(f"Expecting {length} packets")
+                # receive large data
+                title, message = recv_large_data(ETH_TYPE_3, length=length)
+                incoming_data_widget.add_log(f"Received large message with title: {title}")
+                incoming_data_widget.add_file(title, message)
+                continue
             print(f"Received message: {message}")
             incoming_data_widget.add_log(message)
+
         except Exception as e:
             continue
 
