@@ -199,7 +199,7 @@ static ssize_t eth_transmit(int eth_tap_fd, eth_packet_t *packet) {
     }
 
     // Send the Recieved frame
-    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + strlen(recieved_msg.payload));
+    return write(eth_tap_fd, &recieved_msg, ETH_HEADER_LEN + LIFI_PAYLOAD_LENGTH);
 }
 
 //! TODO: Reconstruct Ethernet frame from memory here
