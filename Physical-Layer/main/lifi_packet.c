@@ -239,7 +239,7 @@ eth_packet_t receive_lifi_packet()
 void send_receive_task(void *pvParameters)
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
-    strcpy(packet->payload, "Im ready to recieve your load");
+    strcpy(packet->payload, "LIFI INITIALIZED[ready]");
     lifi_packets.espToEspPacket.status = RECEIVED;
     set_receieve_packet(packet);
     xTaskNotifyGive(lifi_packets.recievedTaskHandler);
