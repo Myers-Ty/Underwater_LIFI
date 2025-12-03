@@ -38,11 +38,9 @@ void print_packet(eth_packet_t *packet) {
 
 u16_t calculate_crc(eth_packet_t *packet) {
     u16_t crc = 0x0000;
-    uint8_t *data = (uint8_t *)packet;
-    size_t length = ETH_HWADDR_LEN + LIFI_PAYLOAD_LENGTH;
 
-    for (size_t i = 0; i < length; i++) {
-        crc += data[i];
+    for (size_t i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        crc += packet->payload[i];
     }
     return crc;
 }
@@ -249,7 +247,7 @@ void send_receive_task(void *pvParameters)
         if(byte == LIFI_PREAMBLE) {
             eth_packet_t packet_recv = receive_lifi_packet();
 
-            if (calculate_crc(packet) == packet->CRC) {
+            if (calculate_crc(packet) == *(u16_t*)packet->CRC) {
                 // send empty preamble as ack
                 send_sequence_start();
 
@@ -257,7 +255,7 @@ void send_receive_task(void *pvParameters)
                 print_packet(&packet_recv);
                 xTaskNotifyGive(lifi_packets.recievedTaskHandler);    
             } else {
-                printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), packet->CRC);
+                printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), *(u16_t*)packet->CRC);
             }
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
