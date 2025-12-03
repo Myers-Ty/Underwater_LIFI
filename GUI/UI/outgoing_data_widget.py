@@ -32,9 +32,9 @@ class OutgoingDataWidget(QWidget):
         self.grid_layout.addWidget(self.send_text, 4, 0)
         self.send_text_button.clicked.connect(self.send_text_message)
 
-        self.mac_input = QLineEdit()
-        self.mac_input.setPlaceholderText("Destination MAC Address (e.g., ff:ff:ff:ff:ff:ff)")
-        self.grid_layout.addWidget(self.mac_input, 5, 0)
+        # self.mac_input = QLineEdit()
+        # self.mac_input.setPlaceholderText("Destination MAC Address (e.g., ff:ff:ff:ff:ff:ff)")
+        # self.grid_layout.addWidget(self.mac_input, 5, 0)
 
 
     def send_text_message(self):

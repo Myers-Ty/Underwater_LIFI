@@ -10,8 +10,10 @@ from scapy.all import raw
 from math import ceil
 import socket
 import time
+from dotenv import load_dotenv
+load_dotenv()
 
-PACKET_SIZE = 44 # Define a constant for packet size
+PACKET_SIZE = int(os.getenv("PACKET_PAYLOAD_LENGTH")) # Define a constant for packet size
 
 @contextlib.contextmanager
 def configure_eth_if(eth_type: int, target_if: str = '') -> Iterator[socket.socket]:
@@ -107,7 +109,7 @@ def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '',
     chunk_size = PACKET_SIZE - len(length_bytes)
 
     i = 1
-    time.sleep(0.1) 
+    time.sleep(0.05) 
     packet_num_bytes = byte_length(i)
     while(len(packet_num_bytes) < len(length_bytes)):
             packet_num_bytes = b'\x00' + packet_num_bytes
@@ -116,7 +118,7 @@ def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '',
 
     print(f"Sending {number_of_packets} packets...")
     while offset < total_length:
-        time.sleep(0.1)  # slight delay to avoid overwhelming the receiver
+        time.sleep(0.05)  # slight delay to avoid overwhelming the receiver
         packet_num_bytes = byte_length(i)
         while(len(packet_num_bytes) < len(length_bytes)):
             packet_num_bytes = b'\x00' + packet_num_bytes
@@ -145,7 +147,7 @@ def recv_large_data(eth_type: int, eth_if: str = '', length: int = 0) -> tuple[s
         # print(f"[RECV] Packet {packet_num}: content_len={len(content)} content (hex): {content.hex()}")
         if(packet_num, content) not in received_packets and packet_num <= number_of_packets and packet_num > 0:
             received_packets.append((packet_num, content))
-            # print("Received packet %d/%d" % (packet_num, number_of_packets))
+            print("Received packet %d/%d" % (packet_num, number_of_packets))
 
     received_packets.sort(key=lambda x: x[0])
     name_packet = received_packets[0]

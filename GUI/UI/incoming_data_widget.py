@@ -31,11 +31,11 @@ class IncomingDataWidget(QWidget):
         # self.number.setValidator(QIntValidator(0, 100, self.number))
 
         # This will be changed once we have proper hooks
-        self.startButton = QPushButton("Receieve File")
-        self.startButton.clicked.connect(self.run_progress_bar)
+        # self.startButton = QPushButton("Receieve File")
+        # self.startButton.clicked.connect(self.run_progress_bar)
 
         # self.box_layout.addWidget(self.number)
-        self.box_layout.addWidget(self.startButton)
+        # self.box_layout.addWidget(self.startButton)
         # self.box_layout.addWidget(self.progressBar)
 
                 # This will be changed once we have proper hooks
