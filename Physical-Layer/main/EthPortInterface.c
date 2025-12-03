@@ -89,11 +89,13 @@ error:
 
 static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) {
     memcpy(&out_frame->header.src.addr, &in_frame->header.src.addr, ETH_ADDR_LEN);
-    //! TODO: set destination address??
+    //! TODO: if needed later set destination address same method as src
     // Set Ethernet type
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
     memcpy(&out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
+
+    memcpy(&out_frame->CRC, &in_frame->CRC, sizeof(uint16_t));
     
     printf("Packet Saved 🎊");
     printf("\n\n");
@@ -149,16 +151,8 @@ static void nonblock_l2tap_echo_task(void *pvParameters)
                             len, recv_msg->header.src.addr[0], recv_msg->header.src.addr[1], recv_msg->header.src.addr[2],
                             recv_msg->header.src.addr[3], recv_msg->header.src.addr[4], recv_msg->header.src.addr[5]);
 
-                // Save frame to our buffer
-                //! TODO: Create Buffer and store here for transmission
                 save_frame(recv_msg, len);
                 
-                //! TODO: Send messages properly
-                // ssize_t ret = write(eth_tap_fd, &echo_msg, len);
-                // if (ret == -1) {
-                //     ESP_LOGE(TAG, "L2 TAP fd %d write error: errno: %d", eth_tap_fd, errno);
-                //     break;
-                // }
             } else {
                 ESP_LOGE(TAG, "L2 TAP fd %d read error: errno %d", eth_tap_fd, errno);
                 break;
@@ -245,7 +239,7 @@ error:
     vTaskDelete(NULL);
 }
 
-    void initialize_gpio() {
+void initialize_gpio() {
     // Configure LED pin as output
     gpio_config_t io_conf = {
         .intr_type = GPIO_INTR_DISABLE,
@@ -302,7 +296,7 @@ void app_main(void)
     xTaskCreatePinnedToCore(nonblock_l2tap_echo_task, "echo_no-block", 4096, NULL, 5, NULL, 0);
     xTaskCreatePinnedToCore(eth_recieved_task, "EthRecievedMsgHandler", 4096, NULL, 5, &lifi_packets.recievedTaskHandler, 0);
     // Sender/Receiver task on core 1 (second core)
-    xTaskCreatePinnedToCore(send_receive_task, "hello_tx", 4096, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(send_receive_task, "LifiSendReceiveTask", 4096, NULL, 4, NULL, 1);
 
     // Lets us send pause frames to stop transmission
     //! TODO: Fix flow control because currently enabling it fails :(
