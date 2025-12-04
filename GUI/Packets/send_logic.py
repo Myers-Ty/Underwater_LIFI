@@ -52,6 +52,7 @@ def configure_eth_if(eth_type: int, target_if: str = '') -> Iterator[socket.sock
         so.close()
 
 def requeue_dropped(message: bytes) -> None:
+    message = message.rstrip(b'\x00')
     packet = [x for x in SENT_PACKET_LIST if x.startswith(message)]
     if(len(packet) > 0):
         PACKET_QUEUE.put(packet[0])
