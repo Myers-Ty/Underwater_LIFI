@@ -41,18 +41,15 @@ class IncomingDataWidget(QWidget):
                 # This will be changed once we have proper hooks
         # self.endButton = QPushButton("End Progress Bar")
         # self.endButton.clicked.connect(lambda : self.progressBar.end_progress_bar())
-        # self.box_layout.addWidget(self.endButton)
+        self.box_layout.addWidget(self.endButton)
         self.log = QTextBrowser()
         self.box_layout.addWidget(self.log) 
-        self.clearLogButton = QPushButton("Clear Log")
-        self.clearLogButton.clicked.connect(lambda : self.log.clear())
-        self.box_layout.addWidget(self.clearLogButton)
 
     def add_log(self, message: str):
         self.log.append(time.strftime("[%H:%M:%S]") + " " + message)    
 
-    # def run_progress_bar(self):
-    #     self.progressBar.run_progress_bar(int(self.number.text()))
+    def run_progress_bar(self):
+        self.progressBar.run_progress_bar(int(self.number.text()))
 
 
     def add_file(self, title: str, content: str):

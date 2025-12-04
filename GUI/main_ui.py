@@ -1,13 +1,13 @@
 
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
-from PySide6.QtCore import QThread, Signal, QTimer
+from PySide6.QtCore import QThread, Signal
 from UI.incoming_data_widget import IncomingDataWidget
 
 from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
+from Packets.send_logic import send_eth_frame, recv_eth_frame, intify_length, recv_large_data, send_file
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
@@ -23,82 +23,48 @@ incoming_data_widget = IncomingDataWidget()
 
 grid_layout.addWidget(outgoing_data_widget, 0, 0)
 grid_layout.addWidget(incoming_data_widget, 0, 1)
-grid_layout.addWidget(MetricWidget(), 1, 0, 1, 2)
-# grid_layout.addWidget(MetricWidget(), 1, 1)
+grid_layout.addWidget(MetricWidget(), 1, 0)
+grid_layout.addWidget(MetricWidget(), 1, 1)
 
 # listen to the outgoing data widget's send signal
 def handle_send_message(message: str):
     # get destination MAC address
+    dest_mac = outgoing_data_widget.get_mac()
 
-    #log the message being sent
-    incoming_data_widget.add_log(f"Sending message: {message}")
+
+    print(f"Handle sending message: {message}")
     # Here you would add the logic to actually send the message via your communication protocol
-    if(len(message) >= PACKET_SIZE):
-        incoming_data_widget.add_log(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")    
-        send_large_data(message.encode(), title='MESSAGE')
-    else:
-        queue_eth_frame(message.encode())  # Example usage
+    send_eth_frame(message.encode(), ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
-outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path))
-outgoing_data_widget.clear_signal.connect(lambda : clear_Packet_queue())
+outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path, ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff'))
 
 window.setLayout(grid_layout)
 
 def handle_receieve_message() -> bytes:
     return recv_eth_frame(ETH_TYPE_3)
 
-
-
 def receiver_event_loop():
     print("Starting receiver event loop")
     while True:
         try:
             message = handle_receieve_message()
-            print(f"Received message (hex): {message.hex()}")
+            print(f"Received raw message: {message}")
             if(message.__contains__(b"PNUM[")):
-
+                print("Processing large packet...\n\n\n\n\n\n")
+                # process large packet, getting length from between brackets
                 start_index = message.index(b"[") + 1
                 end_index = message.index(b"]")
                 length_bytes = message[start_index:end_index]
                 length = intify_length(length_bytes)
-                incoming_data_widget.add_log(f"Preparing to receive {length} packets")
-                start_receive_large(length)
-                continue
-            if message.startswith(b'DROPPED['):
-                start_index = message.index(b"[") + 1
-                dropped_count_bytes = message[start_index:PACKET_SIZE]
-                dropped_count = intify_length(dropped_count_bytes)
-                incoming_data_widget.add_log(f"PACKET_BUFFER_FULL")
-                set_dropped(True)
-                continue
-            if message.startswith(b'LOST['):
-                message = message.rstrip(b'\x00')
-                start_index = message.index(b"[") + 1
-                end_index = message.index(b"]")
-                lost_count_bytes = message[start_index:end_index]
-                lost_count = intify_length(lost_count_bytes)
-                start_index = message.index(b"KEPT[") + 1
-                end_index = len(message) - 1
-                kept_count_bytes = message[start_index:end_index]
-                kept_count = intify_length(kept_count_bytes)
-                # "LOST[%d]KEPT[%d]",
-                incoming_data_widget.add_log(f"PACKET_LOST broadcast: {lost_count} packets lost | {kept_count} packets kept")
-                continue
-            if get_receiving_large() > 0:
-                # process large packet
-                data = handle_large_data_packet(message)
-                if data is None:
-                    continue
-                title, message = data
+                print(f"Expecting {length} packets")
+                # receive large data
+                title, message = recv_large_data(ETH_TYPE_3, length=length)
                 incoming_data_widget.add_log(f"Received large message with title: {title}")
-                if(title == 'MESSAGE'):
-                    incoming_data_widget.add_log(message.decode(errors='ignore').rstrip('\x00'))
-                    continue
                 incoming_data_widget.add_file(title, message)
                 continue
-                
-            incoming_data_widget.add_log("Received Message: " + message.decode(errors='ignore').rstrip('\x00'))
+            print(f"Received message: {message}")
+            incoming_data_widget.add_log(message.decode(errors='ignore'))
 
         except Exception as e:
             continue
@@ -106,10 +72,5 @@ def receiver_event_loop():
 receiver_thread = QThread()
 receiver_thread.run = receiver_event_loop
 receiver_thread.start()
-sender_thread = QThread()
-sender_thread.run = lambda: send_loop(ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')
-sender_thread.start()
-
-window.setWindowTitle("LIFI GUI")
 window.show()
 app.exec()
