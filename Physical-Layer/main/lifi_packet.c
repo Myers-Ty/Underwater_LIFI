@@ -255,6 +255,8 @@ void packet_loss_tracker(bool loss) {
         lossCount = 0;
         keptCount = 0;
     }
+    count += 1;
+    printf("Count %d \n", count);
 }
 
 // packet handler on core 2
