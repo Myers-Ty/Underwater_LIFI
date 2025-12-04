@@ -116,18 +116,7 @@ def send_loop(eth_type: int, dest_mac: str, eth_if: str = '') -> None:
             # logging.error('Error sending Ethernet frame: %s', str(e))
 
 def construct_socket(eth_type: int, eth_if: str = '') -> socket.socket:
-    if eth_if == '':
-        netifs = os.listdir('/sys/class/net/')
-        netifs.sort(reverse=True)
-        for netif in netifs:
-            if netif.find('eth') == 0 or netif.find('enx') == 0 or netif.find('enp') == 0 or netif.find('eno') == 0:
-                eth_if = netif
-                break
-        if eth_if == '':
-            raise Exception('no network interface found')
-    so = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(eth_type))
-    so.bind((eth_if, 0))
-    return so
+    return configure_eth_if(eth_type, eth_if)
 
 def recv_eth_frame(so : socket.socket) -> bytes:
         try:

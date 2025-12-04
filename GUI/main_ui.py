@@ -91,7 +91,8 @@ def handle_receieve_message(so: socket.socket) -> bytes:
 
 
 def receiver_queue_loop():  
-    so = construct_socket(ETH_TYPE_3)
+    ctx = construct_socket(ETH_TYPE_3)
+    so = ctx.__enter__()
     try:
         while True:
             try:
@@ -100,7 +101,7 @@ def receiver_queue_loop():
             except Exception as e:
                 pass
     finally:
-        so.close()
+        ctx.__exit__(None, None, None)
 
 
 
