@@ -92,12 +92,15 @@ def handle_receieve_message(so: socket.socket) -> bytes:
 
 def receiver_queue_loop():  
     so = construct_socket(ETH_TYPE_3)
-    while(True):
-        try:
-            message = handle_receieve_message(so)
-            RECIEVE_QUEUE.put(message)
-        except Exception as e:
-            pass
+    try:
+        while True:
+            try:
+                message = handle_receieve_message(so)
+                RECIEVE_QUEUE.put(message)
+            except Exception as e:
+                pass
+    finally:
+        so.close()
 
 
 

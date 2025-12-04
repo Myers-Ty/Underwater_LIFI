@@ -10,13 +10,15 @@ class DataRadioButton(QRadioButton):
         # self.update_dropped(self.data)
         self.data = 0.0
 
+        self.update_label()
+
     def set_data(self, data: float) -> None:
         self.data = data
         self.update_label()
         
     def update_label(self) -> None:
         if self.data is None:
-            self.setText(f"{self.label} N/A")
+            self.setText(f"{self.label} N/A {self.units}")
         else:
             self.setText(f"{self.label} {self.data:.3f} {self.units}")
                 # Assuming data is a float
@@ -39,6 +41,7 @@ class MetricWidget(QWidget):
 
         self.throughput_radio = DataRadioButton("ThroughRate:", "b/s")
         self.packet_radio = DataRadioButton("PacketLoss", "%")
+
         self.grid_layout.addWidget(self.throughput_radio, 0, 0)
         self.grid_layout.addWidget(self.packet_radio, 1, 0)
         self.plot = PlotWidget()
