@@ -2,6 +2,7 @@
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
 from PySide6.QtCore import QThread, Signal, QTimer
 from UI.incoming_data_widget import IncomingDataWidget
+from queue import Queue
 
 from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
@@ -11,6 +12,7 @@ from Packets.send_logic import requeue_dropped, send_large_data, send_loop, queu
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
+RECIEVE_QUEUE = Queue()
 
 app = QApplication(sys.argv)
 
@@ -20,10 +22,11 @@ grid_layout = QGridLayout()
 
 outgoing_data_widget = OutgoingDataWidget()
 incoming_data_widget = IncomingDataWidget()
+metric_widget = MetricWidget()
 
 grid_layout.addWidget(outgoing_data_widget, 0, 0)
 grid_layout.addWidget(incoming_data_widget, 0, 1)
-grid_layout.addWidget(MetricWidget(), 1, 0, 1, 2)
+grid_layout.addWidget(metric_widget, 1, 0, 1, 2)
 # grid_layout.addWidget(MetricWidget(), 1, 1)
 
 
@@ -86,12 +89,24 @@ def handle_receieve_message() -> bytes:
     return recv_eth_frame(ETH_TYPE_3)
 
 
+def receiver_queue_loop():  
+    while(True):
+        try:
+            message = handle_receieve_message()
+            RECIEVE_QUEUE.put(message)
+        except Exception as e:
+            return b''
+
+
+
 
 def receiver_event_loop():
     print("Starting receiver event loop")
     while True:
         try:
-            message = handle_receieve_message()
+            message = RECIEVE_QUEUE.get()
+            if message is None:
+                continue
             print(f"Received message (hex): {message.hex()}")
             if(message.__contains__(b"PNUM[")):
 
@@ -128,7 +143,7 @@ def receiver_event_loop():
                 data = handle_large_data_packet(message)
                 if data is None:
                     continue
-                title, message = data
+                title, message, throughput = data
                 incoming_data_widget.add_log(f"Received large message with title: {title}")
                 if(title == 'MESSAGE'):
                     incoming_data_widget.add_log(message.decode(errors='ignore').rstrip('\x00'))
@@ -142,8 +157,13 @@ def receiver_event_loop():
             continue
 
 receiver_thread = QThread()
-receiver_thread.run = receiver_event_loop
+receiver_thread.run = receiver_queue_loop
 receiver_thread.start()
+
+receiver_event_thread = QThread()
+receiver_event_thread.run = receiver_event_loop
+receiver_event_thread.start()
+
 sender_thread = QThread()
 sender_thread.run = lambda: send_loop(ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')
 sender_thread.start()

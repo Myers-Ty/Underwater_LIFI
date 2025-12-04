@@ -21,6 +21,7 @@ PACKET_QUEUE: Queue[bytes] = Queue()
 SENT_PACKET_LIST :list[bytes] = []
 dropped = False
 LARGE_DATA_LIST: list[tuple[int, bytes]] = []
+large_data_start_time = 0.0
 large_data_size = 0
 
 def clear_Packet_queue() -> None:
@@ -107,7 +108,7 @@ def send_loop(eth_type: int, dest_mac: str, eth_if: str = '') -> None:
         message = PACKET_QUEUE.get() #if a large packet PNUM packet is dropped, issues will happen
         try:
             send_eth_frame(message, eth_type, dest_mac, eth_if)
-            if(len(SENT_PACKET_LIST) >= 100):
+            if(len(SENT_PACKET_LIST) >= 1000):
                 SENT_PACKET_LIST.pop(0)
             SENT_PACKET_LIST.append(message)
         except Exception as e:
@@ -119,10 +120,10 @@ def recv_eth_frame(eth_type: int, eth_if: str = '') -> bytes:
         so.settimeout(10)
         try:
             eth_frame = Ether(so.recv(128))
-            if eth_frame.type == eth_type:
-                logging.info('Received %d bytes from %s', len(eth_frame), eth_frame.src)
-                logging.info('Received msg: "%s"', eth_frame.load.decode(errors='ignore'))
-                # print(f"Received msg: {eth_frame.load}")
+            # if eth_frame.type == eth_type:
+            #     logging.info('Received %d bytes from %s', len(eth_frame), eth_frame.src)
+            #     logging.info('Received msg: "%s"', eth_frame.load.decode(errors='ignore'))
+            #     # print(f"Received msg: {eth_frame.load}")
         except Exception as e:
             raise e
     return eth_frame.load
@@ -194,7 +195,7 @@ def send_file(file_path: str) -> None:
         send_large_data(data, title=file_path.split('/')[-1])
 
 
-def handle_large_data_packet(message: bytes) -> None | tuple[str, bytes]:
+def handle_large_data_packet(message: bytes) -> None | tuple[str, bytes, float]:
     chunk = message
     meta_data_length = len(byte_length(large_data_size))
     packet_num = intify_length(chunk[0:meta_data_length])
@@ -214,7 +215,7 @@ def handle_large_data_packet(message: bytes) -> None | tuple[str, bytes]:
             data += packet[1]
         LARGE_DATA_LIST.clear()
         print(f"[RECV] Total reconstructed data length: {len(data)} bytes")
-        return title, data
+        return title, data, 0.0
     return None
 
     
