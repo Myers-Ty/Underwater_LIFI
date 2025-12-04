@@ -7,7 +7,7 @@ from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
+from Packets.send_logic import requeue_dropped, send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
@@ -26,6 +26,43 @@ grid_layout.addWidget(incoming_data_widget, 0, 1)
 grid_layout.addWidget(MetricWidget(), 1, 0, 1, 2)
 # grid_layout.addWidget(MetricWidget(), 1, 1)
 
+
+
+class MessageSenderThread(QThread):
+    def __init__(self, message=None, is_large=False, file_path=None):
+        super().__init__()
+        self.message = message
+        self.is_large = is_large
+        self.file_path = file_path
+
+    def run(self):
+        if self.file_path:
+            send_file(self.file_path)
+        elif self.is_large:
+            send_large_data(self.message.encode(), title='MESSAGE')
+        else:
+            queue_eth_frame(self.message.encode())
+
+# Keep references to sender threads to prevent garbage collection
+sender_threads = []
+
+def handle_send_file(file_path):
+    thread = MessageSenderThread(file_path=file_path)
+    sender_threads.append(thread)
+    thread.finished.connect(lambda: sender_threads.remove(thread))
+    thread.start()
+
+def handle_send_message(message: str):
+    incoming_data_widget.add_log(f"Sending message: {message}")
+    if len(message) >= PACKET_SIZE:
+        incoming_data_widget.add_log(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")
+        thread = MessageSenderThread(message=message, is_large=True)
+    else:
+        thread = MessageSenderThread(message=message, is_large=False)
+    sender_threads.append(thread)
+    thread.finished.connect(lambda: sender_threads.remove(thread))
+    thread.start()
+
 # listen to the outgoing data widget's send signal
 def handle_send_message(message: str):
     # get destination MAC address
@@ -40,7 +77,7 @@ def handle_send_message(message: str):
         queue_eth_frame(message.encode())  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
-outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path))
+outgoing_data_widget.send_file_signal.connect(handle_send_file)
 outgoing_data_widget.clear_signal.connect(lambda : clear_Packet_queue())
 
 window.setLayout(grid_layout)
@@ -67,8 +104,9 @@ def receiver_event_loop():
                 continue
             if message.startswith(b'DROPPED['):
                 start_index = message.index(b"[") + 1
-                dropped_count_bytes = message[start_index:PACKET_SIZE]
-                dropped_count = intify_length(dropped_count_bytes)
+                dropped_bytes = message[start_index:PACKET_SIZE]
+                print(f"dropped message is {message}")
+                requeue_dropped(dropped_bytes)
                 incoming_data_widget.add_log(f"PACKET_BUFFER_FULL")
                 set_dropped(True)
                 continue
