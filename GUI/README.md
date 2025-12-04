@@ -15,5 +15,3 @@ sudo ./venv/bin/python3  TestEth.py
 
 * How to use the GUI
 ...
-
-* If sending packets not via the GUI, you must append a 2 byte CRC to end end. This is calculated by adding each byte of the packet together.
