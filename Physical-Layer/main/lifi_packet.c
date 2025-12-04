@@ -247,6 +247,7 @@ void packet_loss_tracker(bool loss) {
     }
     if (count == 9) {
         eth_packet_t packet;
+        memset(packet.payload, 0, LIFI_PAYLOAD_LENGTH);
         snprintf((char*)packet.payload, LIFI_PAYLOAD_LENGTH,
          "LOST[%d]KEPT[%d]",
          lossCount, keptCount);
