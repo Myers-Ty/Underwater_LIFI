@@ -36,6 +36,15 @@ void print_packet(eth_packet_t *packet) {
     printf("\n\n");
 }
 
+u16_t calculate_crc(eth_packet_t *packet) {
+    u16_t crc = 0x0000;
+
+    for (size_t i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
+        crc += packet->payload[i];
+    }
+    return crc;
+}
+
 void send_byte(char byte) {
     // printf("Sending byte: %02X\n", byte);
 
@@ -86,6 +95,9 @@ void send_packet_data_over_lifi(eth_packet_t *packet)
     for(int i = 0; i < LIFI_PAYLOAD_LENGTH; i++) {
         send_byte(packet->payload[i]);
     }
+    for (int i = 0; i < LIFI_CRC_LENGTH; i++) {
+        send_byte(packet->CRC[i]);
+    }
 }
 
 eth_packet_t* set_receieve_packet(eth_packet_t *packet) {
@@ -118,7 +130,6 @@ void send_sequence_start() {
     //dummy function to start send sequence
     while (1) {
         send_byte(LIFI_PREAMBLE);
-        // lifi_sleep(CLOCK_TICK); //wait a tick before receiving data
         char response = receive_byte_no_final_sleep();
         if (response == LIFI_PREAMBLE) {
             printf("Received Notify Bit Ack\n");
@@ -160,11 +171,22 @@ char recieve_sequence_start() {
 }
 
 void send_lifi_packet() {
-
     
     if(lifi_packets.ethToEspPacketSendReserved.status == SEND) {
-        send_sequence_start();
-        send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
+        bool ack_recieved = false;
+        u16_t crc = calculate_crc(&lifi_packets.ethToEspPacketSendReserved);
+        memcpy(lifi_packets.ethToEspPacketSendReserved.CRC, &crc, sizeof(crc));
+        print_packet(&lifi_packets.ethToEspPacketSendReserved);
+        do {
+            send_sequence_start();
+            send_packet_data_over_lifi(&lifi_packets.ethToEspPacketSendReserved);
+            lifi_sleep(CLOCK_TICK);
+            if (receive_byte() == LIFI_PREAMBLE) {
+                ack_recieved = true;
+            }
+            printf("CRC Failed \n");
+        } while (!ack_recieved);
+        printf("CRC Passed \n");
     }
     int moved_packet = 0;
     //move a circular buffer packet to the reserved send packet if it is marked as SEND
@@ -186,7 +208,7 @@ void send_lifi_packet() {
     }
 }
 
-void receive_lifi_packet()
+eth_packet_t receive_lifi_packet()
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
 
@@ -204,17 +226,20 @@ void receive_lifi_packet()
         // printf("Received byte: %02X\n", packet->payload[i]);
     }
 
+    for (int i = 0; i < LIFI_CRC_LENGTH; i++) {
+        packet->CRC[i] = receive_byte();
+    }
+
     packet->status = RECEIVED;
 
-    while(!set_receieve_packet(packet));
-    print_packet(packet);
+    return *packet;
 }
 
 // packet handler on core 2
 void send_receive_task(void *pvParameters)
 {
     eth_packet_t* packet = &lifi_packets.espToEspPacket;
-    strcpy(packet->payload, "Im ready to recieve your load");
+    strcpy(packet->payload, "LIFI INITIALIZED[ready]");
     lifi_packets.espToEspPacket.status = RECEIVED;
     set_receieve_packet(packet);
     xTaskNotifyGive(lifi_packets.recievedTaskHandler);
@@ -223,9 +248,19 @@ void send_receive_task(void *pvParameters)
         printf("Waiting for packet...\n");
         char byte = recieve_sequence_start();
         if(byte == LIFI_PREAMBLE) {
-            receive_lifi_packet();
-            xTaskNotifyGive(lifi_packets.recievedTaskHandler);           
+            eth_packet_t packet_recv = receive_lifi_packet();
 
+            if (calculate_crc(packet) == *(u16_t*)packet->CRC) {
+                // send empty preamble as ack
+                send_byte(LIFI_PREAMBLE);
+
+                while(!set_receieve_packet(&packet_recv));
+                printf("CRC Match!: value is %04X\n", *(u16_t*)packet->CRC);
+                print_packet(&packet_recv);
+                xTaskNotifyGive(lifi_packets.recievedTaskHandler);    
+            } else {
+                printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), *(u16_t*)packet->CRC);
+            }
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
             send_lifi_packet();
