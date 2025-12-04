@@ -40,6 +40,7 @@ typedef struct {
     eth_packet_t ethToEspPacketSendReserved;
     eth_packet_t ethToEspPacketsRecieveReserved;
 
+    eth_packet_t errorBufferFullPacket;
     eth_packet_t espToEspPacket;
     TaskHandle_t recievedTaskHandler;
 } packet_handler_t;
@@ -53,6 +54,8 @@ void send_packet(eth_packet_t *packet);
 void send_receive_task(void *pvParameters);
 
 eth_packet_t* set_receieve_packet(eth_packet_t *packet);
+
+void packet_loss_tracker(bool loss);
 
 //stored packet array (extern - defined in .c file)
 extern packet_handler_t lifi_packets;

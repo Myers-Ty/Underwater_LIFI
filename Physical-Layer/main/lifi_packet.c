@@ -20,7 +20,7 @@ void lifi_packet_init(void) {
 }
 
 void print_packet(eth_packet_t *packet) {
-        // Print for debugging
+    // Print for debugging
     printf("Data (hex): ");
     for (uint32_t i = 0; i < sizeof(packet->payload) / sizeof(packet->payload[0]); i++) {
         printf("%02X ", packet->payload[i]);
@@ -235,6 +235,28 @@ eth_packet_t receive_lifi_packet()
     return *packet;
 }
 
+void packet_loss_tracker(bool loss) {
+    static u8_t count;
+    static u8_t lossCount;
+    static u8_t keptCount;
+    count %= 10;
+    if (loss) {
+        lossCount += 1;
+    } else {
+        keptCount += 1;
+    }
+    if (count == 9) {
+        eth_packet_t packet;
+        snprintf((char*)packet.payload, LIFI_PAYLOAD_LENGTH,
+         "LOST[%d]KEPT[%d]",
+         lossCount, keptCount);
+        lifi_packets.ethToEspPacketsRecieveReserved.status = RECEIVED;
+        while(!set_receieve_packet(&packet));
+        lossCount = 0;
+        keptCount = 0;
+    }
+}
+
 // packet handler on core 2
 void send_receive_task(void *pvParameters)
 {
@@ -257,9 +279,11 @@ void send_receive_task(void *pvParameters)
                 while(!set_receieve_packet(&packet_recv));
                 printf("CRC Match!: value is %04X\n", *(u16_t*)packet->CRC);
                 print_packet(&packet_recv);
-                xTaskNotifyGive(lifi_packets.recievedTaskHandler);    
+                xTaskNotifyGive(lifi_packets.recievedTaskHandler);   
+                packet_loss_tracker(false); 
             } else {
                 printf("CRC Mismatch: calculated %04X, received %04X\n", calculate_crc(packet), *(u16_t*)packet->CRC);
+                packet_loss_tracker(true); 
             }
         } else if (lifi_packets.ethToEspPacketSendReserved.status == SEND) {
             printf("Attempting to send packet\n");
