@@ -125,13 +125,13 @@ static void save_frame(eth_packet_t *in_frame, int len)
                 copyFrame(in_frame, &lifi_packets.ethToEspPackets[i], len);
                 lifi_packets.ethToEspPackets[i].status = SEND;
                 xSemaphoreGive(lifi_packets.locks[i]);
-                break;
+                return;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
         }
-        //! TODO: IF SPACE FOR PACKET NOT CURRENTLY FOUND IT IS DROPPED :( PLS FIX
+        // If space for a packet is not found it is dropped
         eth_packet_t* packet = &lifi_packets.errorBufferFullPacket;
-        strcpy(packet->payload, "DROPPED[" + *in_frame->payload);
+        snprintf((char*)packet->payload, LIFI_PAYLOAD_LENGTH, "DROPPED[%.*s", (LIFI_PAYLOAD_LENGTH - 15), in_frame->payload);
         while(!set_receieve_packet(packet));
         ESP_LOGI(TAG, "Dropped packet: ");
         print_packet(packet);

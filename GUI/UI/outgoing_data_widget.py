@@ -1,10 +1,11 @@
-from PySide6.QtWidgets import QPushButton, QWidget, QGridLayout, QFileDialog, QLineEdit
+from PySide6.QtWidgets import QPushButton, QWidget, QGridLayout, QFileDialog, QLineEdit, QSizePolicy
 from PySide6.QtCore import Signal
 from .progress_bar import ProgressBar90
 
 class OutgoingDataWidget(QWidget):
     send_signal = Signal(str)  # Signal to send text messages - must be class attribute
     send_file_signal = Signal(str)  # Signal to send file paths - must be class attribute
+    clear_signal = Signal()  # Signal to clear packet queue - must be class attribute
 
     def __init__(self):
         super().__init__()
@@ -27,9 +28,9 @@ class OutgoingDataWidget(QWidget):
         # self.grid_layout.addWidget(self.endButton, 2, 0)
 
         self.send_text_button = QPushButton("Send Text Message")
-        self.grid_layout.addWidget(self.send_text_button, 3, 0)
+        self.grid_layout.addWidget(self.send_text_button, 4, 0)
         self.send_text = QLineEdit()
-        self.grid_layout.addWidget(self.send_text, 4, 0)
+        self.grid_layout.addWidget(self.send_text, 3, 0)
         self.send_text_button.clicked.connect(self.send_text_message)
 
         # self.mac_input = QLineEdit()
@@ -38,6 +39,20 @@ class OutgoingDataWidget(QWidget):
         self.reset_button = QPushButton("Reset ESP")
         self.grid_layout.addWidget(self.reset_button, 6, 0)
         self.reset_button.clicked.connect(self.reset_esp)
+
+        self.clear_button = QPushButton("Clear Packet Queue")
+        self.grid_layout.addWidget(self.clear_button, 7, 0)
+        self.clear_button.clicked.connect(self.clear_packet_queue)
+        self.startButton.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.send_text_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.reset_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.startButton.setStyleSheet("background-color: #2196F3; color: white;")
+        self.send_text_button.setStyleSheet("background-color: #2196F3; color: white;")
+        self.reset_button.setStyleSheet("background-color: #2196F3; color: white;")
+
+    def clear_packet_queue(self):
+        print("Clearing packet queue...")
+        self.clear_signal.emit()
 
     def reset_esp(self):
         print("Resetting ESP...")
@@ -50,11 +65,6 @@ class OutgoingDataWidget(QWidget):
         self.send_signal.emit(message)
         
 
-    def get_mac(self) -> str:
-        # For now, return a hardcoded MAC address; this should be replaced with actual input handling
-        #assume is ff:ff:ff:ff:ff:ff
-        return "ff:ff:ff:ff:ff:ff"
-        return self.mac_input.text()
 
 
     def select_file(self):

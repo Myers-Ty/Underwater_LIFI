@@ -184,7 +184,7 @@ void send_lifi_packet() {
             if (receive_byte() == LIFI_PREAMBLE) {
                 ack_recieved = true;
             }
-            printf("CRC Failed \n");
+            if (!ack_recieved){printf("CRC Failed \n");}
         } while (!ack_recieved);
         printf("CRC Passed \n");
     }
