@@ -94,8 +94,6 @@ static void copyFrame(eth_packet_t *in_frame, eth_packet_t *out_frame, int len) 
     memcpy(&out_frame->header.type, &in_frame->header.type, sizeof(uint16_t));
     // Copy the payload
     memcpy(&out_frame->payload, in_frame->payload, len - ETH_HEADER_LEN); 
-
-    memcpy(&out_frame->CRC, &in_frame->CRC, LIFI_CRC_LENGTH);
     
     printf("Packet Saved 🎊");
     printf("\n\n");
