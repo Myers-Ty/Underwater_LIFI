@@ -50,7 +50,7 @@ def receiver_event_loop():
         try:
             message = handle_receieve_message()
             print(f"Received raw message: {message}")
-            if(message.__contains__(b"LONGPACKET[")):
+            if(message.__contains__(b"PNUM[")):
                 print("Processing large packet...\n\n\n\n\n\n")
                 # process large packet, getting length from between brackets
                 start_index = message.index(b"[") + 1

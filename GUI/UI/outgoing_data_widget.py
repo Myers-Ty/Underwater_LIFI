@@ -35,7 +35,13 @@ class OutgoingDataWidget(QWidget):
         # self.mac_input = QLineEdit()
         # self.mac_input.setPlaceholderText("Destination MAC Address (e.g., ff:ff:ff:ff:ff:ff)")
         # self.grid_layout.addWidget(self.mac_input, 5, 0)
+        self.reset_button = QPushButton("Reset ESP")
+        self.grid_layout.addWidget(self.reset_button, 6, 0)
+        self.reset_button.clicked.connect(self.reset_esp)
 
+    def reset_esp(self):
+        print("Resetting ESP...")
+        self.send_signal.emit("RESET_ESP|RESET_ESP|RESET_ESP|RESET_ESP")
 
     def send_text_message(self):
         message = self.send_text.text()

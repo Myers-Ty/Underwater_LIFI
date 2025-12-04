@@ -10,6 +10,7 @@ from scapy.all import raw
 from math import ceil
 import socket
 import time
+import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -60,7 +61,7 @@ def send_eth_frame(message: bytes, eth_type: int, dest_mac: str, eth_if: str = '
 
 def recv_eth_frame(eth_type: int, eth_if: str = '') -> bytes:
     with configure_eth_if(eth_type, eth_if) as so:
-        so.settimeout(50)
+        so.settimeout(10)
         try:
             eth_frame = Ether(so.recv(128))
             if eth_frame.type == eth_type:
@@ -103,9 +104,11 @@ def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '',
     number_of_packets = find_number_of_packets(total_length)
     length_bytes = byte_length(number_of_packets)
     # print(f"Meta data length: {len(length_bytes)} bytes")
+    meta_time = datetime.datetime.now()
+
     
 
-    send_eth_frame(b"LONGPACKET[" + length_bytes + b"]", eth_type, dest_mac, eth_if)
+    send_eth_frame(b"PNUM[" + length_bytes + b"]" +  meta_time.encode(), eth_type, dest_mac, eth_if)
     chunk_size = PACKET_SIZE - len(length_bytes)
 
     i = 1
