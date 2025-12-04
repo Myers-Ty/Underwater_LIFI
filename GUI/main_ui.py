@@ -95,7 +95,7 @@ def receiver_queue_loop():
             message = handle_receieve_message()
             RECIEVE_QUEUE.put(message)
         except Exception as e:
-            return b''
+            pass
 
 
 
