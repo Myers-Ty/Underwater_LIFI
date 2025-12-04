@@ -125,12 +125,21 @@ static void save_frame(eth_packet_t *in_frame, int len)
                 copyFrame(in_frame, &lifi_packets.ethToEspPackets[i], len);
                 lifi_packets.ethToEspPackets[i].status = SEND;
                 xSemaphoreGive(lifi_packets.locks[i]);
-                break;
+                return;
             }
             xSemaphoreGive(lifi_packets.locks[i]);
         }
-        //! TODO: IF SPACE FOR PACKET NOT CURRENTLY FOUND IT IS DROPPED :( PLS FIX
-        
+        // If space for a packet is not found it is dropped
+        static char* droppedFlag = "DROPPED[";
+        size_t droppedFlagSize = strlen(droppedFlag);
+        eth_packet_t* packet = &lifi_packets.errorBufferFullPacket;
+        memcpy(packet->payload, droppedFlag, droppedFlagSize);
+        memcpy(packet->payload + droppedFlagSize, in_frame->payload, LIFI_PAYLOAD_LENGTH - droppedFlagSize);
+        while(!set_receieve_packet(packet));
+        ESP_LOGI(TAG, "Dropped packet: ");
+        print_packet(packet);
+        xTaskNotifyGive(lifi_packets.recievedTaskHandler); 
+        vTaskDelay(1); // give time for other thread to send message
     }
 }
 
@@ -228,6 +237,10 @@ static void eth_recieved_task(void *pvParameters)
         ESP_LOGE(TAG, "Sending packet to Eth");
 
         // Construct frame
+        if (lifi_packets.errorBufferFullPacket.status == RECEIVED) {
+            ret = eth_transmit(eth_tap_fd, &lifi_packets.errorBufferFullPacket);
+            lifi_packets.errorBufferFullPacket.status = EMPTY;
+        }
         if (lifi_packets.ethToEspPacketsRecieveReserved.status == RECEIVED) {
             ret = eth_transmit(eth_tap_fd, &lifi_packets.ethToEspPacketsRecieveReserved);
             lifi_packets.ethToEspPacketsRecieveReserved.status = EMPTY;
@@ -297,8 +310,6 @@ void app_main(void)
     esp_eth_ioctl(eth_hndl, ETH_CMD_G_MAC_ADDR, mac_addr);
     ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-
-    //! TODO: Create a transmitter and reciever mode if necessary
 
     //init packets
     lifi_packet_init();
