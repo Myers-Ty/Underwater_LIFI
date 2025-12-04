@@ -2,6 +2,7 @@
 import contextlib
 import logging
 import os
+from queue import Queue
 import socket
 import sys
 from typing import Iterator
@@ -15,6 +16,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PACKET_SIZE = int(os.getenv("PACKET_PAYLOAD_LENGTH")) # Define a constant for packet size
+
+PACKET_QUEUE: Queue[bytes] = Queue()
+SENT_PACKET_LIST :list[bytes] = []
+dropped = False
+LARGE_DATA_LIST: list[tuple[int, bytes]] = []
+large_data_size = 0
 
 @contextlib.contextmanager
 def configure_eth_if(eth_type: int, target_if: str = '') -> Iterator[socket.socket]:
@@ -40,6 +47,19 @@ def configure_eth_if(eth_type: int, target_if: str = '') -> Iterator[socket.sock
     finally:
         so.close()
 
+def requeue_dropped(message: bytes) -> None:
+    packet = [x for x in SENT_PACKET_LIST if message in x]
+    if(len(packet) > 0):
+        PACKET_QUEUE.put(packet[0])
+        SENT_PACKET_LIST.remove(packet[0])
+
+def queue_eth_frame(message: bytes) -> None:
+    PACKET_QUEUE.put(message)
+    
+
+def get_receiving_large() -> int:
+    return large_data_size - len(LARGE_DATA_LIST)
+
 def send_eth_frame(message: bytes, eth_type: int, dest_mac: str, eth_if: str = '') -> None:
     with configure_eth_if(eth_type, eth_if) as so:
         so.settimeout(10)
@@ -58,6 +78,26 @@ def send_eth_frame(message: bytes, eth_type: int, dest_mac: str, eth_if: str = '
     # return echoed message and remove possible null characters which might have been appended since
     # minimal size of Ethernet frame to be transmitted physical layer is 60B (not including CRC)
     return "done"
+
+def set_dropped(value: bool) -> None:
+    dropped = value
+
+
+def send_loop(eth_type: int, dest_mac: str, eth_if: str = '') -> None:
+    print("Starting send loop...")
+    while True:
+        time.sleep(0.01) # slight delay to prevent busy waiting
+        if(PACKET_QUEUE.empty() or dropped):
+            continue
+        message = PACKET_QUEUE.get() #if a large packet PNUM packet is dropped, issues will happen
+        try:
+            send_eth_frame(message, eth_type, dest_mac, eth_if)
+            if(len(SENT_PACKET_LIST) >= 100):
+                SENT_PACKET_LIST.pop(0)
+            SENT_PACKET_LIST.append(message)
+        except Exception as e:
+            PACKET_QUEUE.put(message)  # re-queue the message on failure
+            # logging.error('Error sending Ethernet frame: %s', str(e))
 
 def recv_eth_frame(eth_type: int, eth_if: str = '') -> bytes:
     with configure_eth_if(eth_type, eth_if) as so:
@@ -97,18 +137,18 @@ def find_number_of_packets(length: int) -> int:
 
 
 
-def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '', title: str = 'msg.txt') -> None:
+def send_large_data(data: bytes,title: str = 'msg.txt') -> None:
     total_length = len(data)
     # print(f"Total data length: {total_length} bytes")
     offset = 0
     number_of_packets = find_number_of_packets(total_length)
     length_bytes = byte_length(number_of_packets)
     # print(f"Meta data length: {len(length_bytes)} bytes")
-    meta_time = datetime.datetime.now()
-
+    c_time = datetime.datetime.now()
+    meta_time = c_time.minute.to_bytes(1, 'big') + c_time.second.to_bytes(1, 'big') + int(c_time.microsecond / 10000).to_bytes(1, 'big')
     
 
-    send_eth_frame(b"PNUM[" + length_bytes + b"]" +  meta_time.encode(), eth_type, dest_mac, eth_if)
+    queue_eth_frame(b"PNUM[" + length_bytes + b"]" +  meta_time)
     chunk_size = PACKET_SIZE - len(length_bytes)
 
     i = 1
@@ -116,7 +156,7 @@ def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '',
     packet_num_bytes = byte_length(i)
     while(len(packet_num_bytes) < len(length_bytes)):
             packet_num_bytes = b'\x00' + packet_num_bytes
-    send_eth_frame(packet_num_bytes + b"TITLE[" + title.encode() + b"]", eth_type, dest_mac, eth_if)
+    queue_eth_frame(packet_num_bytes + b"TITLE[" + title.encode() + b"]")
     i += 1
 
     print(f"Sending {number_of_packets} packets...")
@@ -128,37 +168,67 @@ def send_large_data(data: bytes, eth_type: int, dest_mac: str, eth_if: str = '',
         chunk = packet_num_bytes + data[offset:offset + chunk_size]
         # print(f"[SEND] Packet {i}: num_bytes={packet_num_bytes.hex()} chunk_len={len(data[offset:offset + chunk_size])} offset={offset}")
         # print(f"[SEND] Chunk data (hex): {data[offset:offset + chunk_size].hex()}")
-        send_eth_frame(chunk, eth_type, dest_mac, eth_if)
+        queue_eth_frame(chunk)
         offset += chunk_size
         # print("Sent packet %d/%d" % (i, number_of_packets))
         i += 1
 
-def send_file(file_path: str, eth_type: int, dest_mac: str, eth_if: str = '') -> None:
+def send_file(file_path: str) -> None:
     with open(file_path, 'rb') as f:
         data = f.read()
-        send_large_data(data, eth_type, dest_mac, eth_if, title=file_path.split('/')[-1])
+        send_large_data(data, title=file_path.split('/')[-1])
 
-def recv_large_data(eth_type: int, eth_if: str = '', length: int = 0) -> tuple[str, bytes]:
-    data = b''
-    received_packets: list[tuple[int, bytes]] = [] 
-    number_of_packets = length
-    meta_data_length = len(byte_length(length))
-    while len(received_packets) < number_of_packets:
-        chunk = recv_eth_frame(eth_type, eth_if)
-        packet_num = intify_length(chunk[0:meta_data_length])
-        content = chunk[meta_data_length:PACKET_SIZE]
-        # print(f"[RECV] Packet {packet_num}: content_len={len(content)} content (hex): {content.hex()}")
-        if(packet_num, content) not in received_packets and packet_num <= number_of_packets and packet_num > 0:
-            received_packets.append((packet_num, content))
-            print("Received packet %d/%d" % (packet_num, number_of_packets))
 
-    received_packets.sort(key=lambda x: x[0])
-    name_packet = received_packets[0]
-    # Extract title from name packet, making sure to remove trailing 0s
-    title = name_packet[1].rstrip(b'\x00')[len(b"TITLE[") + meta_data_length - 1: -1].decode(errors='ignore')   
-    received_packets = received_packets[1:]  # Remove the title packet
+def handle_large_data_packet(message: bytes) -> None | tuple[str, bytes]:
+    chunk = message
+    meta_data_length = len(byte_length(large_data_size))
+    packet_num = intify_length(chunk[0:meta_data_length])
+    content = chunk[meta_data_length:PACKET_SIZE]
+    # print(f"[RECV] Packet {packet_num}: content_len={len(content)} content (hex): {content.hex()}")
+    if(packet_num, content) not in LARGE_DATA_LIST and packet_num <= large_data_size and packet_num > 0:
+        LARGE_DATA_LIST.append((packet_num, content))
+        print("Received packet %d/%d" % (packet_num, large_data_size))
 
-    for packet in received_packets:
-        data += packet[1]
-    # print(f"[RECV] Total reconstructed data length: {len(data)} bytes")
-    return title, data
+    if(get_receiving_large() == 0):
+        LARGE_DATA_LIST.sort(key=lambda x: x[0])
+        name_packet = LARGE_DATA_LIST[0]
+        # Extract title from name packet, making sure to remove trailing 0s
+        title = name_packet[1].rstrip(b'\x00')[len(b"TITLE[") + meta_data_length - 1: -1].decode(errors='ignore')   
+        data = b''
+        for packet in LARGE_DATA_LIST[1:]:
+            data += packet[1]
+        LARGE_DATA_LIST.clear()
+        print(f"[RECV] Total reconstructed data length: {len(data)} bytes")
+        return title, data
+    return None
+
+    
+def start_receive_large(length: int) -> None:
+    global large_data_size
+    large_data_size = length
+    LARGE_DATA_LIST.clear()
+
+# def recv_large_data(eth_type: int, eth_if: str = '', length: int = 0) -> tuple[str, bytes]:
+#     data = b''
+#     received_packets: list[tuple[int, bytes]] = [] 
+#     number_of_packets = length
+#     meta_data_length = len(byte_length(length))
+#     while len(received_packets) < number_of_packets:
+#         chunk = recv_eth_frame(eth_type, eth_if)
+#         packet_num = intify_length(chunk[0:meta_data_length])
+#         content = chunk[meta_data_length:PACKET_SIZE]
+#         # print(f"[RECV] Packet {packet_num}: content_len={len(content)} content (hex): {content.hex()}")
+#         if(packet_num, content) not in received_packets and packet_num <= number_of_packets and packet_num > 0:
+#             received_packets.append((packet_num, content))
+#             print("Received packet %d/%d" % (packet_num, number_of_packets))
+
+#     received_packets.sort(key=lambda x: x[0])
+#     name_packet = received_packets[0]
+#     # Extract title from name packet, making sure to remove trailing 0s
+#     title = name_packet[1].rstrip(b'\x00')[len(b"TITLE[") + meta_data_length - 1: -1].decode(errors='ignore')   
+#     received_packets = received_packets[1:]  # Remove the title packet
+
+#     for packet in received_packets:
+#         data += packet[1]
+#     # print(f"[RECV] Total reconstructed data length: {len(data)} bytes")
+#     return title, data
