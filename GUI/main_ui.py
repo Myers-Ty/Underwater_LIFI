@@ -7,7 +7,7 @@ from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large
+from Packets.send_logic import send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
@@ -23,7 +23,7 @@ incoming_data_widget = IncomingDataWidget()
 
 grid_layout.addWidget(outgoing_data_widget, 0, 0)
 grid_layout.addWidget(incoming_data_widget, 0, 1)
-# grid_layout.addWidget(MetricWidget(), 1, 0)
+grid_layout.addWidget(MetricWidget(), 1, 0, 1, 2)
 # grid_layout.addWidget(MetricWidget(), 1, 1)
 
 # listen to the outgoing data widget's send signal
@@ -31,15 +31,17 @@ def handle_send_message(message: str):
     # get destination MAC address
 
     #log the message being sent
-    outgoing_data_widget.add_log(f"Sending message: {message}")
+    incoming_data_widget.add_log(f"Sending message: {message}")
     # Here you would add the logic to actually send the message via your communication protocol
     if(len(message) >= PACKET_SIZE):
+        incoming_data_widget.add_log(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")    
         send_large_data(message.encode(), title='MESSAGE')
     else:
         queue_eth_frame(message.encode())  # Example usage
     
 outgoing_data_widget.send_signal.connect(handle_send_message)
 outgoing_data_widget.send_file_signal.connect(lambda file_path: send_file(file_path))
+outgoing_data_widget.clear_signal.connect(lambda : clear_Packet_queue())
 
 window.setLayout(grid_layout)
 
@@ -47,12 +49,6 @@ def handle_receieve_message() -> bytes:
     return recv_eth_frame(ETH_TYPE_3)
 
 
-drop_timer = QTimer()
-drop_timer.setInterval(10000)  # 10 seconds
-def on_drop_timer_timeout():
-    print("Drop timer timeout, setting dropped to False")
-    set_dropped(False)
-    drop_timer.stop()
 
 def receiver_event_loop():
     print("Starting receiver event loop")
@@ -75,7 +71,6 @@ def receiver_event_loop():
                 dropped_count = intify_length(dropped_count_bytes)
                 incoming_data_widget.add_log(f"PACKET_BUFFER_FULL")
                 set_dropped(True)
-                drop_timer.start()
                 continue
             if message.startswith(b'LOST['):
                 message = message.rstrip(b'\x00')
@@ -115,6 +110,6 @@ sender_thread = QThread()
 sender_thread.run = lambda: send_loop(ETH_TYPE_2, 'ff:ff:ff:ff:ff:ff')
 sender_thread.start()
 
-
+window.setWindowTitle("LIFI GUI")
 window.show()
 app.exec()

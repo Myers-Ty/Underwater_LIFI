@@ -23,6 +23,10 @@ dropped = False
 LARGE_DATA_LIST: list[tuple[int, bytes]] = []
 large_data_size = 0
 
+def clear_Packet_queue() -> None:
+    PACKET_QUEUE.queue.clear()
+    print("Packet queue cleared.")
+
 @contextlib.contextmanager
 def configure_eth_if(eth_type: int, target_if: str = '') -> Iterator[socket.socket]:
     if target_if == '':
@@ -54,6 +58,7 @@ def requeue_dropped(message: bytes) -> None:
         SENT_PACKET_LIST.remove(packet[0])
 
 def queue_eth_frame(message: bytes) -> None:
+    print(f"Queueing message of length {len(message)} bytes")
     PACKET_QUEUE.put(message)
     
 
@@ -80,6 +85,7 @@ def send_eth_frame(message: bytes, eth_type: int, dest_mac: str, eth_if: str = '
     return "done"
 
 def set_dropped(value: bool) -> None:
+    global dropped
     dropped = value
 
 
@@ -87,7 +93,13 @@ def send_loop(eth_type: int, dest_mac: str, eth_if: str = '') -> None:
     print("Starting send loop...")
     while True:
         time.sleep(0.01) # slight delay to prevent busy waiting
-        if(PACKET_QUEUE.empty() or dropped):
+        if(PACKET_QUEUE.empty()):
+            continue
+        global dropped
+        if(dropped):
+            print("Dropped detected, waiting before retrying...")
+            time.sleep(5) # wait before retrying
+            dropped = False
             continue
         message = PACKET_QUEUE.get() #if a large packet PNUM packet is dropped, issues will happen
         try:
