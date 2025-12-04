@@ -115,18 +115,19 @@ def send_loop(eth_type: int, dest_mac: str, eth_if: str = '') -> None:
             PACKET_QUEUE.put(message)  # re-queue the message on failure
             # logging.error('Error sending Ethernet frame: %s', str(e))
 
-def recv_eth_frame(eth_type: int, eth_if: str = '') -> bytes:
-    with configure_eth_if(eth_type, eth_if) as so:
-        so.settimeout(10)
+def construct_socket(eth_type: int, eth_if: str = '') -> socket.socket:
+    return configure_eth_if(eth_type, eth_if)
+
+def recv_eth_frame(so : socket.socket) -> bytes:
         try:
             eth_frame = Ether(so.recv(128))
             # if eth_frame.type == eth_type:
             #     logging.info('Received %d bytes from %s', len(eth_frame), eth_frame.src)
             #     logging.info('Received msg: "%s"', eth_frame.load.decode(errors='ignore'))
             #     # print(f"Received msg: {eth_frame.load}")
+            return eth_frame.load
         except Exception as e:
             raise e
-    return eth_frame.load
 
 def intify_length(length_str: bytes) -> int:
     length = 0

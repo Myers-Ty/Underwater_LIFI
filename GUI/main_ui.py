@@ -1,4 +1,5 @@
 
+import socket
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
 from PySide6.QtCore import QThread, Signal, QTimer
 from UI.incoming_data_widget import IncomingDataWidget
@@ -8,7 +9,7 @@ from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
 # from outgoing_metric_widget import OutgoingDataMetricWidget
 # from incoming_metric_widget import IncomingDataMetricWidget
-from Packets.send_logic import requeue_dropped, send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
+from Packets.send_logic import construct_socket, requeue_dropped, send_large_data, send_loop, queue_eth_frame, recv_eth_frame, intify_length, send_file, PACKET_SIZE, set_dropped, get_receiving_large, handle_large_data_packet, start_receive_large, clear_Packet_queue
 import sys
 ETH_TYPE_2 = 0x2221
 ETH_TYPE_3 = 0x2223
@@ -85,14 +86,15 @@ outgoing_data_widget.clear_signal.connect(lambda : clear_Packet_queue())
 
 window.setLayout(grid_layout)
 
-def handle_receieve_message() -> bytes:
-    return recv_eth_frame(ETH_TYPE_3)
+def handle_receieve_message(so: socket.socket) -> bytes:
+    return recv_eth_frame(so)
 
 
 def receiver_queue_loop():  
+    so = construct_socket(ETH_TYPE_3)
     while(True):
         try:
-            message = handle_receieve_message()
+            message = handle_receieve_message(so)
             RECIEVE_QUEUE.put(message)
         except Exception as e:
             pass
