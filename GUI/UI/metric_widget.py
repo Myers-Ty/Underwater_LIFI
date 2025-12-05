@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QRadioButton, QWidget, QGridLayout
+from PySide6.QtWidgets import QRadioButton, QWidget, QGridLayout, QSizePolicy
 from pyqtgraph import PlotWidget, plot
 
 class DataRadioButton(QRadioButton):
@@ -32,8 +32,8 @@ class MetricWidget(QWidget):
         self.grid_layout = QGridLayout()
         self.setLayout(self.grid_layout)
 
-        self.dropped_data : list[tuple[int, int]] = [(0,0)]
-        self.throughput_data : list[float] = []
+        self.dropped_data : list[tuple[int, int]] = []
+        self.throughput_data : list[tuple[float, int]] = []
 
         self.throughput_mode = True
         self.drop_mode = False
@@ -45,23 +45,35 @@ class MetricWidget(QWidget):
         self.grid_layout.addWidget(self.throughput_radio, 0, 0)
         self.grid_layout.addWidget(self.packet_radio, 1, 0)
         self.plot = PlotWidget()
+        self.plot.enableAutoRange(axis='y', enable=True)
+        self.plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.grid_layout.addWidget(self.plot, 0, 1, 2, 1)
-
+        self.grid_layout.setRowStretch(0, 3)  # Plot row
+        self.grid_layout.setRowStretch(1, 0)  # Radio button row
+        self.grid_layout.setColumnStretch(0, 0)  # Radio button column
+        self.grid_layout.setColumnStretch(1, 3)  # Plot column
         self.packet_radio.clicked.connect(lambda: self.set_packet_plot())
         self.throughput_radio.clicked.connect(lambda: self.set_throughput_plot())
 
 
     def update_dropped(self, dropped_count: int, kept_count: int) -> None:
-        self.dropped_data.append((dropped_count + self.dropped_data[-1][0], kept_count + self.dropped_data[-1][1]))
+
+        self.dropped_data.append((dropped_count, kept_count))
         if len(self.dropped_data) > 100:
             self.dropped_data.pop(0)
+
+        avg_dropped = sum([d[0] for d in self.dropped_data]) / (10 * len(self.dropped_data)) * 100
+        self.packet_radio.set_data(avg_dropped)
+
         if self.drop_mode:
             self.set_packet_plot()
 
-    def update_throughput(self, throughput: float) -> None:
+    def update_throughput(self, duration: float, size_bytes: int) -> None:
         if(len(self.throughput_data) >= 100):
             self.throughput_data.pop(0)
-        self.throughput_data.append(throughput)
+        self.throughput_data.append((duration, size_bytes))
+        total_throughput = sum([size for (dur, size) in self.throughput_data]) / sum([dur for (dur, size) in self.throughput_data])
+        self.throughput_radio.set_data(total_throughput)
         if self.throughput_mode:
             self.set_throughput_plot()
 
@@ -71,7 +83,6 @@ class MetricWidget(QWidget):
             x = [i for i in range(len(self.dropped_data))]
             y = [d[0] / (d[0] + d[1]) * 100 for d in self.dropped_data]
             self.plot.plot(x, y, pen='r', name='Packet Loss %')
-            self.packet_radio.set_data(y[-1])
         else:
             self.packet_radio.set_data(None)
         self.drop_mode = True
@@ -81,8 +92,8 @@ class MetricWidget(QWidget):
         self.plot.clear()
         if len(self.throughput_data) > 0:
             x = [i for i in range(len(self.throughput_data))]
-            self.plot.plot(x, self.throughput_data, pen='g', name='Throughput b/s')
-            self.throughput_radio.set_data(self.throughput_data[-1])
+            y = [size / dur for (dur, size) in self.throughput_data]
+            self.plot.plot(x, y, pen='g', name='Throughput b/s')
         else:
             self.throughput_radio.set_data(None)
         self.throughput_mode = True

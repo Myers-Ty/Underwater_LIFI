@@ -1,9 +1,10 @@
 
 import socket
 from PySide6.QtWidgets import QApplication, QWidget, QGridLayout
-from PySide6.QtCore import QThread, Signal, QTimer
+from PySide6.QtCore import QThread, Signal, QTimer, QObject
 from UI.incoming_data_widget import IncomingDataWidget
 from queue import Queue
+import datetime
 
 from UI.outgoing_data_widget import OutgoingDataWidget
 from UI.metric_widget import MetricWidget
@@ -20,6 +21,9 @@ app = QApplication(sys.argv)
 window = QWidget()
 
 grid_layout = QGridLayout()
+grid_layout.setContentsMargins(2, 0, 2, 2)  # left, top, right, bottom
+grid_layout.setHorizontalSpacing(2)
+grid_layout.setVerticalSpacing(0)
 
 outgoing_data_widget = OutgoingDataWidget()
 incoming_data_widget = IncomingDataWidget()
@@ -27,10 +31,35 @@ metric_widget = MetricWidget()
 
 grid_layout.addWidget(outgoing_data_widget, 0, 0)
 grid_layout.addWidget(incoming_data_widget, 0, 1)
-grid_layout.addWidget(metric_widget, 1, 0, 1, 2)
-# grid_layout.addWidget(MetricWidget(), 1, 1)
+grid_layout.addWidget(metric_widget, 1, 0, 2, 2)
+grid_layout.setRowStretch(0, 1)  # Outgoing/incoming widgets row
+grid_layout.setRowStretch(1, 3)  # Metric widget row (increase this value for more space)ut.addWidget(MetricWidget(), 1, 1)
 
 
+
+
+class MetricSignalEmitter(QObject):
+    update_dropped_signal = Signal(int, int)
+    update_duration_signal = Signal(float, int)
+    log_signal = Signal(str)
+    
+
+
+metric_signal_emitter = MetricSignalEmitter()
+
+def log_to_widget(msg):
+    incoming_data_widget.add_log(msg)
+
+metric_signal_emitter.log_signal.connect(log_to_widget)
+
+def update_metric_dropped(lost_count, kept_count):
+    metric_widget.update_dropped(lost_count, kept_count)
+
+def update_metric_throughput(duration, size_bytes):
+    metric_widget.update_throughput(duration, size_bytes)
+
+metric_signal_emitter.update_dropped_signal.connect(update_metric_dropped)
+metric_signal_emitter.update_duration_signal.connect(update_metric_throughput)
 
 class MessageSenderThread(QThread):
     def __init__(self, message=None, is_large=False, file_path=None):
@@ -47,6 +76,7 @@ class MessageSenderThread(QThread):
         else:
             queue_eth_frame(self.message.encode())
 
+
 # Keep references to sender threads to prevent garbage collection
 sender_threads = []
 
@@ -57,9 +87,9 @@ def handle_send_file(file_path):
     thread.start()
 
 def handle_send_message(message: str):
-    incoming_data_widget.add_log(f"Sending message: {message}")
+    metric_signal_emitter.log_signal.emit(f"Sending message: {message}")
     if len(message) >= PACKET_SIZE:
-        incoming_data_widget.add_log(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")
+        metric_signal_emitter.log_signal.emit(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")
         thread = MessageSenderThread(message=message, is_large=True)
     else:
         thread = MessageSenderThread(message=message, is_large=False)
@@ -72,10 +102,10 @@ def handle_send_message(message: str):
     # get destination MAC address
 
     #log the message being sent
-    incoming_data_widget.add_log(f"Sending message: {message}")
+    metric_signal_emitter.log_signal.emit(f"Sending message: {message}")
     # Here you would add the logic to actually send the message via your communication protocol
     if(len(message) >= PACKET_SIZE):
-        incoming_data_widget.add_log(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")    
+        metric_signal_emitter.log_signal.emit(f"Message length {len(message)} exceeds PACKET_SIZE {PACKET_SIZE}, sending as large data.")    
         send_large_data(message.encode(), title='MESSAGE')
     else:
         queue_eth_frame(message.encode())  # Example usage
@@ -120,44 +150,54 @@ def receiver_event_loop():
                 end_index = message.index(b"]")
                 length_bytes = message[start_index:end_index]
                 length = intify_length(length_bytes)
-                incoming_data_widget.add_log(f"Preparing to receive {length} packets")
-                start_receive_large(length)
+                timestamp = message[end_index+1:end_index+4]
+                minute = timestamp[0]
+                second = timestamp[1]
+                centisecond = timestamp[2] * 10  # since you divided microseconds by 10000, this is centiseconds
+
+                packet_time = datetime.time(minute=minute, second=second, microsecond=centisecond * 10000)
+                metric_signal_emitter.log_signal.emit(f"Preparing to receive {length} packets")
+                start_receive_large(length, packet_time)
                 continue
             if message.startswith(b'DROPPED['):
                 start_index = message.index(b"[") + 1
                 dropped_bytes = message[start_index:PACKET_SIZE]
                 print(f"dropped message is {message}")
                 requeue_dropped(dropped_bytes)
-                incoming_data_widget.add_log(f"PACKET_BUFFER_FULL")
+                metric_signal_emitter.log_signal.emit(f"PACKET_BUFFER_FULL")
                 set_dropped(True)
                 continue
             if message.startswith(b'LOST['):
                 message = message.rstrip(b'\x00')
-                start_index = message.index(b"[") + 1
-                end_index = message.index(b"]")
+                message = str(message)
+                start_index = message.index("[") + 1
+                end_index = message.index("]")
                 lost_count_bytes = message[start_index:end_index]
-                lost_count = intify_length(lost_count_bytes)
-                start_index = message.index(b"KEPT[") + 1
-                end_index = len(message) - 1
+                lost_count = int(lost_count_bytes)
+                start_index = message.index("KEPT[") + 5
+                end_index = len(message) - 2
                 kept_count_bytes = message[start_index:end_index]
-                kept_count = intify_length(kept_count_bytes)
-                # "LOST[%d]KEPT[%d]",
-                incoming_data_widget.add_log(f"PACKET_LOST broadcast: {lost_count} packets lost | {kept_count} packets kept")
+                kept_count = int(kept_count_bytes)
+                metric_signal_emitter.log_signal.emit(f"PACKET_LOST broadcast: {lost_count} lost | {kept_count} kept")
+                metric_signal_emitter.update_dropped_signal.emit(lost_count, kept_count)
                 continue
             if get_receiving_large() > 0:
                 # process large packet
                 data = handle_large_data_packet(message)
                 if data is None:
                     continue
-                title, message, throughput = data
-                incoming_data_widget.add_log(f"Received large message with title: {title}")
+                title, message, duration = data
+                
+                metric_signal_emitter.log_signal.emit(f"Received large message with title: {title}")
+                metric_signal_emitter.update_duration_signal.emit(duration, len(message) * 8)
+
                 if(title == 'MESSAGE'):
-                    incoming_data_widget.add_log(message.decode(errors='ignore').rstrip('\x00'))
+                    metric_signal_emitter.log_signal.emit(message.decode(errors='ignore').rstrip('\x00'))
                     continue
                 incoming_data_widget.add_file(title, message)
                 continue
                 
-            incoming_data_widget.add_log("Received Message: " + message.decode(errors='ignore').rstrip('\x00'))
+            metric_signal_emitter.log_signal.emit("Received Message: " + message.decode(errors='ignore').rstrip('\x00'))
 
         except Exception as e:
             continue

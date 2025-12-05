@@ -21,7 +21,7 @@ PACKET_QUEUE: Queue[bytes] = Queue()
 SENT_PACKET_LIST :list[bytes] = []
 dropped = False
 LARGE_DATA_LIST: list[tuple[int, bytes]] = []
-large_data_start_time = 0.0
+large_data_start_time : datetime.time = datetime.time(0, 0, 0)
 large_data_size = 0
 
 def clear_Packet_queue() -> None:
@@ -216,11 +216,17 @@ def handle_large_data_packet(message: bytes) -> None | tuple[str, bytes, float]:
             data += packet[1]
         LARGE_DATA_LIST.clear()
         print(f"[RECV] Total reconstructed data length: {len(data)} bytes")
-        return title, data, 0.0
+
+        global large_data_start_time
+        end_time = datetime.datetime.now()
+        start_time = datetime.datetime.combine(datetime.date.today(), large_data_start_time)
+        duration = (end_time - start_time).total_seconds()
+        return title, data, duration
     return None
 
-    
-def start_receive_large(length: int) -> None:
+def start_receive_large(length: int, timestamp: datetime.time) -> None:
+    global large_data_start_time
+    large_data_start_time = timestamp
     global large_data_size
     large_data_size = length
     LARGE_DATA_LIST.clear()
