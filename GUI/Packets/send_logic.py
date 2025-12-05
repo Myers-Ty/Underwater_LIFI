@@ -26,6 +26,9 @@ large_data_size = 0
 
 def clear_Packet_queue() -> None:
     PACKET_QUEUE.queue.clear()
+    global large_data_size
+    large_data_size = 0
+    LARGE_DATA_LIST.clear()
     print("Packet queue cleared.")
 
 @contextlib.contextmanager
