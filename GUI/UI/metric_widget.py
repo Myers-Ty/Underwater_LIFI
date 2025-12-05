@@ -92,7 +92,7 @@ class MetricWidget(QWidget):
         self.plot.clear()
         if len(self.throughput_data) > 0:
             x = [i for i in range(len(self.throughput_data))]
-            y = [size / dur for (dur, size) in self.throughput_data]
+            y = [size * 8 / dur for (dur, size) in self.throughput_data]
             self.plot.plot(x, y, pen='g', name='Throughput b/s')
         else:
             self.throughput_radio.set_data(None)
