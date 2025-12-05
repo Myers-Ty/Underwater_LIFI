@@ -145,7 +145,6 @@ def receiver_event_loop():
                 continue
             print(f"Received message (hex): {message.hex()}")
             if(message.__contains__(b"PNUM[")):
-
                 start_index = message.index(b"[") + 1
                 end_index = message.index(b"]")
                 length_bytes = message[start_index:end_index]
@@ -153,9 +152,8 @@ def receiver_event_loop():
                 timestamp = message[end_index+1:end_index+4]
                 minute = timestamp[0]
                 second = timestamp[1]
-                centisecond = timestamp[2] * 10  # since you divided microseconds by 10000, this is centiseconds
-
-                packet_time = datetime.time(minute=minute, second=second, microsecond=centisecond * 10000)
+                millisecond = timestamp[2]  # since you divided microseconds by 10000, this is centiseconds
+                packet_time = datetime.time(minute=minute, second=second, microsecond=millisecond * 10000)
                 metric_signal_emitter.log_signal.emit(f"Preparing to receive {length} packets")
                 start_receive_large(length, packet_time)
                 continue
